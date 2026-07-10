@@ -6,6 +6,7 @@ import { entityFamily } from "@/lib/entities/entityFamily";
 import { getStateFee } from "@/lib/entities/stateFees";
 import { ADDONS, getPlansForEntity } from "@/lib/entities/pricing";
 import { generateRegistrationId } from "@/lib/registrationId";
+import { seedComplianceEvents } from "@/lib/entities/complianceEvents";
 
 export const runtime = "nodejs";
 
@@ -64,7 +65,11 @@ export async function POST(req: NextRequest) {
   }
 
   const stateFeeCents = (getStateFee(data.state) ?? 0) * 100;
-  const selectedAddons = ADDONS.filter((a) => data.addonKeys.includes(a.key));
+  // Recurring addons (e.g. Comply) aren't sellable as a one-time Checkout
+  // line item — Stripe Checkout can't mix one-time and recurring items in
+  // "payment" mode. Those are subscribed to separately after formation; see
+  // POST /api/subscriptions/comply/checkout.
+  const selectedAddons = ADDONS.filter((a) => data.addonKeys.includes(a.key) && !a.recurring);
   const addonsCents = selectedAddons.reduce((sum, a) => sum + a.priceCents, 0);
   const totalCents = plan.priceCents + stateFeeCents + addonsCents;
 
@@ -123,6 +128,15 @@ export async function POST(req: NextRequest) {
       notes,
     ]
   );
+
+  const complianceEvents = seedComplianceEvents(family, new Date());
+  for (const event of complianceEvents) {
+    await query(
+      `INSERT INTO compliance_events (registration_id, event_type, due_date)
+       VALUES ($1, $2, $3)`,
+      [registrationId, event.eventType, event.dueDate]
+    );
+  }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? req.nextUrl.origin;
   const stripe = getStripe();

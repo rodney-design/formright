@@ -28,8 +28,11 @@ export default function StepContactPayment({
   const plans = getPlansForEntity(family);
   const defaultPlan = plans.find((p) => p.featured) ?? plans[0];
   const selectedPlan = plans.find((p) => p.key === s.selectedPlanKey) ?? defaultPlan;
+  const oneTimeAddons = ADDONS.filter((a) => !a.recurring);
   const stateFeeCents = getStateFee(s.state) ? getStateFee(s.state)! * 100 : 0;
-  const addonsCents = ADDONS.filter((a) => s.addonKeys.has(a.key)).reduce((sum, a) => sum + a.priceCents, 0);
+  const addonsCents = oneTimeAddons
+    .filter((a) => s.addonKeys.has(a.key))
+    .reduce((sum, a) => sum + a.priceCents, 0);
   const totalCents = (selectedPlan?.priceCents ?? 0) + stateFeeCents + addonsCents;
 
   async function submit() {
@@ -154,8 +157,8 @@ export default function StepContactPayment({
       </div>
 
       <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3">Add-Ons</div>
-      <div className="flex gap-3 flex-wrap mb-8">
-        {ADDONS.map((addon) => (
+      <div className="flex gap-3 flex-wrap mb-2">
+        {oneTimeAddons.map((addon) => (
           <label
             key={addon.key}
             className="border border-gray-200 rounded-lg px-4 py-3 flex items-center gap-2.5 cursor-pointer text-sm"
@@ -171,6 +174,9 @@ export default function StepContactPayment({
           </label>
         ))}
       </div>
+      <p className="text-xs text-gray-400 mb-8">
+        FormRight Comply ($149/yr) is a subscription — add it from your dashboard after formation.
+      </p>
 
       <div className="bg-gray-50 border-[1.5px] border-gray-200 rounded-xl p-5">
         <div className="font-bold text-navy text-sm uppercase tracking-wide mb-3.5">Order Summary</div>

@@ -4,9 +4,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { entityFamily } from "@/lib/entities/entityFamily";
 import { getDocsForEntity } from "@/lib/entities/entityDocsMap";
 import { orgDataFromRegistration, type RegistrationRow } from "@/lib/entities/orgDataFromRegistration";
-import { generateDocBuffer } from "@/lib/doc-engine/generate";
 import { generateAllDocsZip } from "@/lib/doc-engine/zip";
-import { build1023EZPrefillPdf } from "@/lib/doc-engine/pdf/irs1023ez";
+import { generateAndStoreDocument } from "@/lib/doc-engine/generateAndStore";
 
 export const runtime = "nodejs";
 
@@ -21,6 +20,11 @@ async function loadRegistration(registrationId: string, userId: string, isAdmin:
   return reg;
 }
 
+// Phase 2: generate-and-store (build-order doc §Phase 2 step 2) — instead of
+// streaming the generated file straight back, this generates it, uploads to
+// S3, records a `documents` row, and redirects to a pre-signed URL. The zip
+// ("all") path is a bundle rather than a single named document, so it's kept
+// as a direct stream, same as Phase 1.
 export async function GET(req: NextRequest, { params }: { params: { registrationId: string } }) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -49,27 +53,13 @@ export async function GET(req: NextRequest, { params }: { params: { registration
     return NextResponse.json({ error: "Missing key" }, { status: 400 });
   }
 
-  if (key === "narrative_1023") {
-    const pdfBuffer = await build1023EZPrefillPdf(org);
-    return new NextResponse(new Uint8Array(pdfBuffer), {
-      headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${safeName}_1023EZ_Prefill.pdf"`,
-      },
-    });
+  if (key !== "narrative_1023") {
+    const docs = getDocsForEntity(reg.entity_type);
+    if (!docs.find((d) => d.key === key)) {
+      return NextResponse.json({ error: "Unknown document key for this entity" }, { status: 400 });
+    }
   }
 
-  const docs = getDocsForEntity(reg.entity_type);
-  const docMeta = docs.find((d) => d.key === key);
-  if (!docMeta) {
-    return NextResponse.json({ error: "Unknown document key for this entity" }, { status: 400 });
-  }
-
-  const buffer = await generateDocBuffer(key, org);
-  return new NextResponse(new Uint8Array(buffer), {
-    headers: {
-      "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "Content-Disposition": `attachment; filename="${safeName}_${key}.docx"`,
-    },
-  });
+  const { url } = await generateAndStoreDocument(reg.id, key, reg.entity_type, org, safeName);
+  return NextResponse.redirect(url);
 }

@@ -69,5 +69,52 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // FormRight Comply subscription (build-order doc §Phase 2 step 4).
+  if (event.type === "checkout.session.completed") {
+    const session = event.data.object as Stripe.Checkout.Session;
+    if (session.mode === "subscription" && session.subscription) {
+      const userId = session.client_reference_id ?? session.metadata?.userId;
+      const subscriptionId =
+        typeof session.subscription === "string" ? session.subscription : session.subscription.id;
+      if (userId) {
+        await upsertSubscription(userId, subscriptionId);
+      }
+    }
+  }
+
+  if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted") {
+    const subscription = event.data.object as Stripe.Subscription;
+    const userId = subscription.metadata?.userId;
+    if (userId) {
+      await upsertSubscription(userId, subscription.id, subscription);
+    }
+  }
+
   return NextResponse.json({ received: true });
+}
+
+async function upsertSubscription(userId: string, subscriptionId: string, subscription?: Stripe.Subscription) {
+  const stripe = getStripe();
+  const sub = subscription ?? (await stripe.subscriptions.retrieve(subscriptionId));
+  const plan = (sub.metadata?.plan as "comply" | "agent" | undefined) ?? "comply";
+  const renewsAt = sub.items.data[0]?.current_period_end
+    ? new Date(sub.items.data[0].current_period_end * 1000)
+    : null;
+
+  const existing = await query<{ id: string }>(
+    "SELECT id FROM subscriptions WHERE stripe_subscription_id = $1",
+    [subscriptionId]
+  );
+  if (existing.rows.length > 0) {
+    await query(
+      "UPDATE subscriptions SET status = $1, renews_at = $2 WHERE stripe_subscription_id = $3",
+      [sub.status, renewsAt, subscriptionId]
+    );
+  } else {
+    await query(
+      `INSERT INTO subscriptions (user_id, stripe_subscription_id, plan, status, renews_at)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [userId, subscriptionId, plan, sub.status, renewsAt]
+    );
+  }
 }

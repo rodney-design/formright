@@ -62,7 +62,7 @@ export default async function AdminRegistrationDetailPage({ params }: { params: 
               <span>
                 {doc.icon} {doc.title}
               </span>
-              <DownloadButton href={`/api/documents/${reg.id}?key=${doc.key}`}>Download</DownloadButton>
+              <DownloadButton href={`/api/documents/registration/${reg.id}?key=${doc.key}`}>Download</DownloadButton>
             </div>
           ))}
         </div>

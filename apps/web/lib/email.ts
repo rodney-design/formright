@@ -28,6 +28,36 @@ export async function sendMagicLinkEmail(to: string, verifyUrl: string): Promise
   });
 }
 
+const EVENT_TYPE_LABELS: Record<string, string> = {
+  annual_report: "Annual Report",
+  benefit_report: "Annual Benefit Report",
+  "2553_deadline": "IRS Form 2553 (S-Corp Election) Deadline",
+};
+
+export async function sendComplianceReminderEmail(
+  to: string,
+  orgName: string,
+  eventType: string,
+  dueDate: string,
+  daysUntil: number
+): Promise<void> {
+  ensureInitialized();
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  const label = EVENT_TYPE_LABELS[eventType] ?? eventType;
+  const formattedDate = new Date(dueDate).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  await sgMail.send({
+    to,
+    from: fromAddress(),
+    subject: `${label} due in ${daysUntil} days — ${orgName}`,
+    text: `Reminder: ${orgName}'s ${label} is due on ${formattedDate} (${daysUntil} days from now). Check your compliance calendar: ${appUrl}/dashboard`,
+    html: `<p>Reminder: <strong>${orgName}</strong>'s <strong>${label}</strong> is due on <strong>${formattedDate}</strong> (${daysUntil} days from now).</p><p>Check your <a href="${appUrl}/dashboard">compliance calendar</a>.</p>`,
+  });
+}
+
 export async function sendRegistrationConfirmationEmail(
   to: string,
   orgName: string,

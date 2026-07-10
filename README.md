@@ -45,6 +45,9 @@ See `.env.example`. All of these are required for the app to function; nothing i
 | `SENDGRID_FROM_EMAIL` | From-address for those emails |
 | `SENTRY_DSN` | Enables server-side error reporting when set; app runs fine without it |
 | `NEXT_PUBLIC_APP_URL` | Absolute base URL used in emails and redirects |
+| `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | S3 access for the document vault (Phase 2). Credentials are optional if running on infra with an attached IAM role — the AWS SDK's default credential chain handles that case. |
+| `S3_BUCKET` | Bucket generated documents are uploaded to |
+| `CRON_SECRET` | Shared secret the compliance-reminder cron route checks against the `Authorization: Bearer` header Vercel Cron sends |
 
 ### Promoting a user to admin
 
@@ -85,10 +88,34 @@ db/
 
 ## Phase 1 scope notes
 
-- `subscriptions` and `compliance_events` tables (the "Comply" annual-compliance system) are
-  Phase 2, per the build-order doc, and are not implemented here.
 - `STATE_FEES` is the ported flat rate table; a normalized `state_fees` table keyed by
   state + entity type is a Should-Have for a later pass, not a Phase 1 blocker.
 - Additional onboarding-wizard fields that don't have dedicated columns in the Phase 1 schema
   (program description, governance preferences, IRS screening answers, registered-agent info)
   are preserved as JSON in `registrations.notes` rather than dropped.
+
+## Phase 2 — Document Vault & Compliance
+
+- **Document generation now stores to S3** instead of only streaming the generated file back.
+  `GET /api/documents/registration/:registrationId?key=...` (or `?all=1` for the zip) generates,
+  uploads to S3, writes a `documents` row, and redirects to a pre-signed URL. Each regeneration
+  is a new `version` row rather than overwriting the previous one.
+- **Document vault API** — `GET /api/documents/:userId` returns pre-signed URLs for a user's
+  already-generated documents (`lib/queries/documents.ts`). The dashboard Documents tab uses this
+  to show "Download" vs. "Generate" per document.
+- **FormRight Comply subscription** — real recurring Stripe billing ($149/yr), separate from the
+  one-time formation checkout (Stripe Checkout can't mix payment and subscription line items in
+  one session). `POST /api/subscriptions/comply/checkout` starts it from the dashboard billing
+  page; the Stripe webhook upserts the `subscriptions` table on `checkout.session.completed` /
+  `customer.subscription.updated` / `customer.subscription.deleted`.
+- **Compliance calendar** — `lib/entities/complianceEvents.ts` seeds `compliance_events` rows on
+  registration creation, entity-type-driven (e.g. IRS Form 2553 election deadline for S-Corps,
+  annual benefit report for Benefit Corps). Due dates are approximated from the formation date;
+  state-specific fixed-calendar-date rules aren't modeled yet.
+- **Reminder cron** — `GET /api/cron/compliance-reminders`, scheduled daily via `vercel.json`,
+  secret-protected via `CRON_SECRET`. Emails via SendGrid when an event is exactly 90, 60, or 30
+  days from its due date, then marks `reminded_at`.
+- **Registered agent service is not implemented.** Per the build-order doc, this is gated on a
+  business decision (integrate with Northwest Registered Agent's API vs. build in-house
+  fulfillment) rather than a pure build task — the `subscriptions.plan` CHECK constraint already
+  allows `'agent'` so the schema doesn't block whichever direction gets picked.

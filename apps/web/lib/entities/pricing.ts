@@ -165,11 +165,17 @@ export interface Addon {
   priceCents: number;
   cadence: string;
   description: string;
+  // True for addons billed as a real recurring Stripe subscription (Phase 2)
+  // rather than a one-time checkout line item — see the `subscriptions`
+  // table and POST /api/subscriptions/comply/checkout. Excluded from the
+  // formation checkout's one-time line items; subscribed to separately from
+  // the dashboard after formation.
+  recurring?: boolean;
 }
 
 // Ported from the shared "Add-Ons & Annual Compliance" section.
 export const ADDONS: Addon[] = [
-  { key: "comply", name: "FormRight Comply", priceCents: 14900, cadence: "/yr", description: "Compliance calendar · Document vault · Deadline alerts · Annual report reminders" },
+  { key: "comply", name: "FormRight Comply", priceCents: 14900, cadence: "/yr", description: "Compliance calendar · Document vault · Deadline alerts · Annual report reminders", recurring: true },
   { key: "registered_agent", name: "Registered Agent", priceCents: 9900, cadence: "/yr", description: "Add-on for Starter plans · All states" },
   { key: "expedited_filing", name: "Expedited Filing", priceCents: 7900, cadence: "one-time", description: "Rush processing · Priority handling" },
   { key: "pro_compliance", name: "Pro Compliance", priceCents: 4900, cadence: "/client/yr", description: "B2B · Per client · Annual" },

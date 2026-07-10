@@ -178,7 +178,7 @@ export const useOnboardStore = create<OnboardState>((set, get) => ({
 
   addonsCents: () => {
     const s = get();
-    return ADDONS.filter((a) => s.addonKeys.has(a.key)).reduce((sum, a) => sum + a.priceCents, 0);
+    return ADDONS.filter((a) => !a.recurring && s.addonKeys.has(a.key)).reduce((sum, a) => sum + a.priceCents, 0);
   },
 
   totalCents: () => {
