@@ -3,7 +3,7 @@ import { z } from "zod";
 import { query } from "@/lib/db";
 import { getStripe } from "@/lib/stripe";
 import { entityFamily } from "@/lib/entities/entityFamily";
-import { getStateFee } from "@/lib/entities/stateFees";
+import { getStateFeeForEntity } from "@/lib/entities/stateFeesTable";
 import { ADDONS, getPlansForEntity } from "@/lib/entities/pricing";
 import { generateRegistrationId } from "@/lib/registrationId";
 import { seedComplianceEvents } from "@/lib/entities/complianceEvents";
@@ -64,7 +64,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const stateFeeCents = (getStateFee(data.state) ?? 0) * 100;
+  const stateFeeDetail = await getStateFeeForEntity(data.state, family);
+  const stateFeeCents = stateFeeDetail?.feeCents ?? 0;
   // Recurring addons (e.g. Comply) aren't sellable as a one-time Checkout
   // line item — Stripe Checkout can't mix one-time and recurring items in
   // "payment" mode. Those are subscribed to separately after formation; see
@@ -155,7 +156,13 @@ export async function POST(req: NextRequest) {
     lineItems.push({
       price_data: {
         currency: "usd",
-        product_data: { name: `${data.state} state filing fee` },
+        product_data: {
+          name: `${data.state} state filing fee`,
+          // Surfaces things this fee does NOT cover (e.g. CA's separate $800/yr
+          // franchise tax, NY's LLC publication requirement) at checkout time,
+          // not buried in a support ticket later.
+          ...(stateFeeDetail?.notes ? { description: stateFeeDetail.notes } : {}),
+        },
         unit_amount: stateFeeCents,
       },
       quantity: 1,

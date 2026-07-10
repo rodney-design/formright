@@ -1,8 +1,11 @@
 import { notFound } from "next/navigation";
 import { getRegistrationById } from "@/lib/queries/registrations";
 import { getDocsForEntity } from "@/lib/entities/entityDocsMap";
+import { getStateFilingForRegistration } from "@/lib/queries/stateFilings";
+import { buildFilingWorksheet } from "@/lib/state-filing/worksheet";
 import DownloadButton from "@/components/dashboard/DownloadButton";
 import AdminRegDetailForm from "@/components/admin/AdminRegDetailForm";
+import StateFilingPanel from "@/components/admin/StateFilingPanel";
 
 export default async function AdminRegistrationDetailPage({ params }: { params: { id: string } }) {
   const reg = await getRegistrationById(params.id);
@@ -10,6 +13,7 @@ export default async function AdminRegistrationDetailPage({ params }: { params: 
 
   const docs = getDocsForEntity(reg.entity_type);
   const address = reg.address as { address?: string; city?: string; zip?: string } | null;
+  const stateFiling = await getStateFilingForRegistration(reg.id);
 
   return (
     <div className="max-w-3xl">
@@ -53,6 +57,10 @@ export default async function AdminRegistrationDetailPage({ params }: { params: 
       </div>
 
       <AdminRegDetailForm id={reg.id} status={reg.status} notes={reg.notes ?? ""} />
+
+      {stateFiling && (
+        <StateFilingPanel filing={stateFiling} worksheet={buildFilingWorksheet(reg)} />
+      )}
 
       <div className="bg-white border border-gray-200 rounded-2xl p-6 mt-6">
         <div className="font-semibold text-navy mb-4">Documents ({docs.length})</div>

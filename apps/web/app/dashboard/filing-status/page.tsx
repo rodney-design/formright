@@ -1,6 +1,17 @@
 import { getCurrentUser } from "@/lib/auth";
 import { getRegistrationsForUser } from "@/lib/queries/registrations";
+import { getStateFilingForRegistration } from "@/lib/queries/stateFilings";
+import { getDocumentUrl } from "@/lib/s3";
 import StatusBadge from "@/components/dashboard/StatusBadge";
+import DownloadButton from "@/components/dashboard/DownloadButton";
+
+const FILING_STATUS_LABELS: Record<string, string> = {
+  not_submitted: "Not yet submitted to the state",
+  submitted: "Submitted — awaiting state processing",
+  processing: "Being processed by the state",
+  approved: "Approved by the state",
+  rejected: "Rejected by the state — see your formation specialist",
+};
 
 const TIMELINE_STEPS = [
   { key: "pending", label: "Registration submitted" },
@@ -25,6 +36,10 @@ export default async function FilingStatusPage() {
   }
 
   const currentIndex = stepIndex(active.status);
+  const stateFiling = await getStateFilingForRegistration(active.id);
+  const stampedDocUrl = stateFiling?.stamped_doc_s3_key
+    ? await getDocumentUrl(stateFiling.stamped_doc_s3_key)
+    : null;
 
   return (
     <div>
@@ -77,6 +92,31 @@ export default async function FilingStatusPage() {
           </div>
         </div>
       </div>
+
+      {stateFiling && (
+        <div className="bg-white border border-gray-200 rounded-2xl p-6 mt-6">
+          <div className="font-semibold text-navy mb-4">State Filing — {stateFiling.state}</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-gray-600">
+            <div>
+              <span className="text-gray-400">Status</span>
+              <div className="font-medium text-navy">
+                {FILING_STATUS_LABELS[stateFiling.filing_status] ?? stateFiling.filing_status}
+              </div>
+            </div>
+            <div>
+              <span className="text-gray-400">State confirmation ID</span>
+              <div className="font-medium text-navy">{stateFiling.state_confirmation_id || "Pending"}</div>
+            </div>
+          </div>
+          {stampedDocUrl && (
+            <div className="mt-4">
+              <DownloadButton href={stampedDocUrl} variant="dark">
+                ⬇ Download Stamped Certificate
+              </DownloadButton>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -119,3 +119,43 @@ db/
   business decision (integrate with Northwest Registered Agent's API vs. build in-house
   fulfillment) rather than a pure build task — the `subscriptions.plan` CHECK constraint already
   allows `'agent'` so the schema doesn't block whichever direction gets picked.
+
+## Phase 3 — State Filing Integrations
+
+**Research finding (checked before building — see build-order doc's own caveat that this phase
+is gated by external approval, not build time): none of the 5 priority states (DE, CA, FL, NY,
+TX) expose a documented, official, programmatic filing-submission API today.** All five are
+web-portal-only — Texas's SOSDirect/SOSUpload is the closest thing to programmatic (an
+authenticated account-based upload workflow, still not a REST/SOAP API), and fax filing there
+was discontinued Sept 2025 in favor of that portal. Search-engine "API" results for these states
+are almost entirely third-party data resellers scraping/reselling entity data, not official state
+filing capability. This should be re-verified directly with each state's Division of
+Corporations/business-filing office before assuming it's permanently true — it's a snapshot, not
+a guarantee.
+
+Given that, Phase 3 is built as **manual filing status tracking**, not automated e-filing:
+
+- `state_filings` and `state_fees` tables (`db/migrations/003_phase3.sql`).
+- `lib/entities/stateFees.ts`'s `getStateFeeForEntity()` reads entity-type-specific fees from
+  `state_fees`, falling back to the old flat `STATE_FEES` rate when no row exists yet. Only a
+  few state+entity_type combinations are seeded — the ones the build-order doc gives verified
+  figures for (Delaware LLC/C-Corp/Nonprofit, New York's LLC publication-fee callout, California's
+  LLC fee + $800/yr franchise tax). Filling in the rest needs a real accuracy pass against current
+  Secretary of State fee schedules, not invented numbers — deliberately left unseeded rather than
+  guessed.
+- `lib/state-filing/worksheet.ts` builds a filing worksheet from a registration's data (entity
+  name, registered agent, address, board/members) — not a state-specific verified form mapping,
+  since no state's actual form field schema was confirmed. It's what staff transcribe into that
+  state's own portal by hand.
+- A `state_filings` row is auto-created (`ensureStateFiling`) when a registration's payment
+  succeeds (Stripe webhook). Admins update `filing_status`/`state_confirmation_id` and attach the
+  stamped certificate (uploaded to S3) via the `StateFilingPanel` on the admin registration detail
+  page (`PATCH /api/admin/state-filings/:id`) after filing through the state's portal directly.
+  This is the "filing status webhook/polling" build-order doc step, done manually since no state
+  offers a real one yet.
+- Client dashboard's Filing Status page now shows the real `state_filings` status and a stamped
+  certificate download link (pre-signed S3 URL) once approved, instead of only the coarse
+  `registrations.status` timeline.
+- **If a state opens a real filing API later**, or FormRight decides to build portal automation,
+  swap the manual step in `lib/state-filing/` for a real submission client — the `state_filings`
+  table and status flow underneath don't need to change.

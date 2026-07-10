@@ -3,6 +3,7 @@ import type Stripe from "stripe";
 import { getStripe } from "@/lib/stripe";
 import { query } from "@/lib/db";
 import { sendRegistrationConfirmationEmail } from "@/lib/email";
+import { ensureStateFiling } from "@/lib/queries/stateFilings";
 
 export const runtime = "nodejs";
 
@@ -38,8 +39,9 @@ export async function POST(req: NextRequest) {
           state_fee_cents: number | null;
           orgname: string;
           contact_email: string;
+          state: string;
         }>(
-          "SELECT amount_cents, state_fee_cents, orgname, contact_email FROM registrations WHERE id = $1",
+          "SELECT amount_cents, state_fee_cents, orgname, contact_email, state FROM registrations WHERE id = $1",
           [registrationId]
         );
         const registration = regResult.rows[0];
@@ -51,6 +53,7 @@ export async function POST(req: NextRequest) {
              VALUES ($1, $2, $3, $4, 'succeeded')`,
             [registrationId, paymentIntent.id, registration.amount_cents, registration.state_fee_cents]
           );
+          await ensureStateFiling(registrationId, registration.state);
           await sendRegistrationConfirmationEmail(
             registration.contact_email,
             registration.orgname,
