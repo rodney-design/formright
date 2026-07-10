@@ -1,4 +1,4 @@
-import { Pool } from "pg";
+import { Pool, type QueryResultRow } from "pg";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -13,13 +13,18 @@ function createPool(): Pool {
   return new Pool({ connectionString });
 }
 
-// Reuse the pool across hot reloads in dev instead of exhausting connections.
-export const db = global._pgPool ?? createPool();
-if (process.env.NODE_ENV !== "production") {
-  global._pgPool = db;
+// Lazily create the pool on first use (not at module load) so importing this
+// module doesn't require DATABASE_URL to be set, e.g. during `next build`
+// static analysis of pages that only *conditionally* touch the DB at request
+// time. Reuse the pool across hot reloads in dev instead of exhausting connections.
+function getPool(): Pool {
+  if (!global._pgPool) {
+    global._pgPool = createPool();
+  }
+  return global._pgPool;
 }
 
-export async function query<T = unknown>(text: string, params?: unknown[]) {
-  const result = await db.query<T>(text, params as never[]);
+export async function query<T extends QueryResultRow = QueryResultRow>(text: string, params?: unknown[]) {
+  const result = await getPool().query<T>(text, params as never[]);
   return result;
 }

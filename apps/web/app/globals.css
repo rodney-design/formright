@@ -3,25 +3,90 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --background: #f8fafc;
+  --foreground: #1e293b;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-outfit), "Outfit", sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+}
+
+@layer components {
+  .legal-body h2 {
+    font-family: var(--font-fraunces), Georgia, serif;
+    font-size: 1.25rem;
+    color: #0d1f3c;
+    margin: 36px 0 10px;
+    padding-top: 8px;
+    border-top: 1px solid #f1f5f9;
+  }
+  .legal-body h2:first-child {
+    border-top: none;
+    margin-top: 0;
+  }
+  .legal-body h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #00897b;
+    margin: 28px 0 8px;
+  }
+  .legal-body p {
+    font-size: 0.9rem;
+    color: #475569;
+    line-height: 1.85;
+    margin-bottom: 14px;
+    font-weight: 300;
+  }
+  .legal-body ul {
+    padding-left: 20px;
+    margin-bottom: 14px;
+  }
+  .legal-body li {
+    font-size: 0.9rem;
+    color: #475569;
+    line-height: 1.85;
+    margin-bottom: 6px;
+    font-weight: 300;
+  }
+  .legal-body strong {
+    color: #1e293b;
+    font-weight: 600;
+  }
+  .legal-body a {
+    color: #00897b;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+  .legal-notice {
+    background: #e0f2f1;
+    border-left: 4px solid #00897b;
+    border-radius: 0 8px 8px 0;
+    padding: 14px 18px;
+    margin: 20px 0;
+    font-size: 0.875rem;
+    color: #00897b;
+    font-weight: 500;
+  }
+  .legal-warning {
+    background: #fef3c7;
+    border-left: 4px solid #f9a825;
+    border-radius: 0 8px 8px 0;
+    padding: 14px 18px;
+    margin: 20px 0;
+    font-size: 0.875rem;
+    color: #92400e;
+    font-weight: 500;
   }
 }
