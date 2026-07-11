@@ -8,6 +8,7 @@ const ITEMS = [
   { href: "/dashboard/documents", icon: "📄", label: "Documents" },
   { href: "/dashboard/filing-status", icon: "📊", label: "Filing Status" },
   { href: "/dashboard/billing", icon: "💳", label: "Billing" },
+  { href: "/dashboard/assistant", icon: "💬", label: "Assistant" },
   { href: "/dashboard/settings", icon: "⚙️", label: "Settings" },
 ];
 

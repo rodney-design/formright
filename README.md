@@ -221,3 +221,34 @@ subscribing to seat billing) is self-service from `/firm/*`.
   invitee's `users` row and inserts a pending `firm_members` row, emails them
   (`sendFirmInviteEmail`); accepted automatically on their next magic-link login
   (`acceptPendingFirmInvites` in `/api/auth/verify`), which also resyncs seat billing.
+
+## Phase 5 — Intelligence & Scale
+
+Per the build-order doc's own table, only the AI formation assistant was marked buildable now;
+everything else needed either external-API research (same treatment as Phase 3/Northwest) or has
+no spec yet.
+
+- **AI formation assistant** — `POST /api/assistant`, grounded in the signed-in user's own
+  `registrations` + `compliance_events` (`lib/assistant.ts` builds the system prompt from that
+  data, `lib/queries/complianceEvents.ts` is the new query). Scoped to entity/state formation and
+  compliance Q&A, explicitly out-of-scope for general legal/tax advice, carries the same
+  non-attorney disclaimer as `components/marketing/DisclaimerBar.tsx`. Streams via
+  `client.messages.stream()` (`claude-opus-4-8`) as plain text chunks to a chat panel at
+  `/dashboard/assistant` (`components/dashboard/AssistantChat.tsx`) — there was no existing
+  Support chat UI slot ported from the prototype in this build, so this is a new dashboard nav
+  item rather than a reuse.
+- **IRS e-filing (Form 2553, expanded 1023-EZ) — researched, not built.** Same diligence as
+  Phase 3's state research: **neither form has a real e-filing API.** Form 2553 has no electronic
+  filing option at all (mail or fax only). Form 1023-EZ is filed exclusively through Pay.gov (a
+  payment/form portal, not an API). The IRS's Modernized e-File (MeF) program is a real API, but
+  it's scoped to tax *returns* (1120, 990, 1040, etc.), not standalone elections or exemption
+  applications — and access requires becoming an IRS-Authorized e-file Provider (Form 3112,
+  suitability check, EFIN, transmitter testing — up to 45 days), a business/legal authorization
+  process, not a public API key, mirroring Phase 3/Northwest exactly. The existing Phase 1
+  Form 2553 guide builder and 1023-EZ Pay.gov pre-fill PDF are already the right shape for this
+  reality — nothing further was built here.
+- **Predictive compliance alerts, BOI/FinCEN reporting, Canada/UK formation, marketplace —
+  intentionally not built.** Per the build-order doc these have no spec yet beyond the existing
+  90/60/30-day reminders (predictive), need a scoping pass on what "assistance" means
+  (BOI/FinCEN), or are explicitly exploratory with no schema (Canada/UK, marketplace). Building
+  any of these now would mean guessing at requirements rather than following a spec.
