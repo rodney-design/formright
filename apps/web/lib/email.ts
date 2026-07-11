@@ -17,6 +17,18 @@ function fromAddress(): string {
   return from;
 }
 
+export async function sendFirmInviteEmail(to: string, firmName: string, inviterEmail: string): Promise<void> {
+  ensureInitialized();
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  await sgMail.send({
+    to,
+    from: fromAddress(),
+    subject: `You've been invited to ${firmName} on FormRight`,
+    text: `${inviterEmail} invited you to join ${firmName}'s team on FormRight. Sign in with this email address to accept: ${appUrl}/auth/login`,
+    html: `<p><strong>${inviterEmail}</strong> invited you to join <strong>${firmName}</strong>'s team on FormRight.</p><p>Sign in with this email address to accept: <a href="${appUrl}/auth/login">${appUrl}/auth/login</a></p>`,
+  });
+}
+
 export async function sendMagicLinkEmail(to: string, verifyUrl: string): Promise<void> {
   ensureInitialized();
   await sgMail.send({

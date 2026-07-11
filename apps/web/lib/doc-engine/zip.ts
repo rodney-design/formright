@@ -25,7 +25,8 @@ export async function generateAllDocsZip(entityType: string, org: OrgData): Prom
   const safeName = org.name.replace(/[^a-z0-9]/gi, "_");
   const docs = getDocsForEntity(entityType);
   const zip = new JSZip();
-  const folder = zip.folder(org.name + " — FormRight Documents");
+  const preparedBy = org.branding?.firmName ?? "FormRight";
+  const folder = zip.folder(`${org.name} — ${preparedBy} Documents`);
   if (!folder) throw new Error("Failed to create zip folder");
 
   for (const doc of docs) {

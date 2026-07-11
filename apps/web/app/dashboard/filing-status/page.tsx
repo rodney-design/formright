@@ -1,6 +1,7 @@
 import { getCurrentUser } from "@/lib/auth";
 import { getRegistrationsForUser } from "@/lib/queries/registrations";
 import { getStateFilingForRegistration } from "@/lib/queries/stateFilings";
+import { getRegisteredAgentOrderForRegistration } from "@/lib/queries/registeredAgent";
 import { getDocumentUrl } from "@/lib/s3";
 import StatusBadge from "@/components/dashboard/StatusBadge";
 import DownloadButton from "@/components/dashboard/DownloadButton";
@@ -11,6 +12,13 @@ const FILING_STATUS_LABELS: Record<string, string> = {
   processing: "Being processed by the state",
   approved: "Approved by the state",
   rejected: "Rejected by the state — see your formation specialist",
+};
+
+const REGISTERED_AGENT_STATUS_LABELS: Record<string, string> = {
+  not_requested: "Not yet requested",
+  requested: "Requested — awaiting Northwest confirmation",
+  active: "Active",
+  canceled: "Canceled",
 };
 
 const TIMELINE_STEPS = [
@@ -40,6 +48,7 @@ export default async function FilingStatusPage() {
   const stampedDocUrl = stateFiling?.stamped_doc_s3_key
     ? await getDocumentUrl(stateFiling.stamped_doc_s3_key)
     : null;
+  const registeredAgentOrder = await getRegisteredAgentOrderForRegistration(active.id);
 
   return (
     <div>
@@ -115,6 +124,24 @@ export default async function FilingStatusPage() {
               </DownloadButton>
             </div>
           )}
+        </div>
+      )}
+
+      {registeredAgentOrder && (
+        <div className="bg-white border border-gray-200 rounded-2xl p-6 mt-6">
+          <div className="font-semibold text-navy mb-4">Registered Agent</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-gray-600">
+            <div>
+              <span className="text-gray-400">Status</span>
+              <div className="font-medium text-navy">
+                {REGISTERED_AGENT_STATUS_LABELS[registeredAgentOrder.status] ?? registeredAgentOrder.status}
+              </div>
+            </div>
+            <div>
+              <span className="text-gray-400">Provider</span>
+              <div className="font-medium text-navy capitalize">{registeredAgentOrder.provider}</div>
+            </div>
+          </div>
         </div>
       )}
     </div>

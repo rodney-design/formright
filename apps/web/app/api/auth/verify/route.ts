@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { consumeMagicLinkToken, createSession } from "@/lib/auth";
+import { acceptPendingFirmInvites, getFirmMembershipForUser } from "@/lib/queries/firms";
+import { syncFirmSeatQuantity } from "@/lib/queries/firmSubscriptions";
 
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get("token");
@@ -15,7 +17,14 @@ export async function GET(req: NextRequest) {
   }
 
   await createSession(user.id);
+  const joinedFirmIds = await acceptPendingFirmInvites(user.id);
+  await Promise.all(joinedFirmIds.map((firmId) => syncFirmSeatQuantity(firmId)));
 
-  const dest = user.role === "admin" || user.role === "super_admin" ? "/admin" : "/dashboard";
+  let dest = "/dashboard";
+  if (user.role === "admin" || user.role === "super_admin") {
+    dest = "/admin";
+  } else if (await getFirmMembershipForUser(user.id)) {
+    dest = "/firm";
+  }
   return NextResponse.redirect(`${appUrl}${dest}`);
 }

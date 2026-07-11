@@ -9,6 +9,7 @@ export interface Registration extends RegistrationRow {
   amount_cents: number;
   state_fee_cents: number | null;
   created_at: string;
+  firm_id: string | null;
 }
 
 export async function getRegistrationsForUser(userId: string): Promise<Registration[]> {
@@ -47,5 +48,15 @@ export async function getPaymentsForUser(userId: string): Promise<Payment[]> {
 
 export async function getAllRegistrations(): Promise<Registration[]> {
   const result = await query<Registration>("SELECT * FROM registrations ORDER BY created_at DESC");
+  return result.rows;
+}
+
+// Phase 4 (build-order doc §Phase 4 step 1): data isolation by firm_id for
+// the multi-client dashboard — a firm only ever sees its own clients' rows.
+export async function getRegistrationsForFirm(firmId: string): Promise<Registration[]> {
+  const result = await query<Registration>(
+    "SELECT * FROM registrations WHERE firm_id = $1 ORDER BY created_at DESC",
+    [firmId]
+  );
   return result.rows;
 }

@@ -13,6 +13,7 @@ import {
   Footer,
   Header,
   HeadingLevel,
+  ImageRun,
   ISectionOptions,
   LevelFormat,
   PageBreak,
@@ -22,7 +23,7 @@ import {
   TabStopType,
   TextRun,
 } from "docx";
-import type { OrgData } from "./types";
+import type { DocBranding, OrgData } from "./types";
 
 // ── docx.js builder helpers ──
 export function makeDoc(
@@ -165,11 +166,12 @@ export function divider(): Paragraph {
   });
 }
 
-export function mkHeader(docName: string, orgName: string): Header {
+export function mkHeader(docName: string, orgName: string, branding?: DocBranding): Header {
+  const accent = branding?.primaryColor ?? "1B9AAA";
   return new Header({
     children: [
       new Paragraph({
-        border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: "1B9AAA", space: 4 } },
+        border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: accent, space: 4 } },
         tabStops: [{ type: TabStopType.RIGHT, position: TabStopPosition.MAX }],
         children: [
           new TextRun({ text: orgName, font: "Arial", size: 18, bold: true, color: "0D1B2A" }),
@@ -180,7 +182,8 @@ export function mkHeader(docName: string, orgName: string): Header {
   });
 }
 
-export function mkFooter(date: string): Footer {
+export function mkFooter(date: string, branding?: DocBranding): Footer {
+  const preparedBy = branding?.firmName ?? "FormRight";
   return new Footer({
     children: [
       new Paragraph({
@@ -191,16 +194,37 @@ export function mkFooter(date: string): Footer {
           new TextRun({ children: [PageNumber.CURRENT], font: "Arial", size: 18, color: "475569" }),
           new TextRun({ text: " of ", font: "Arial", size: 18, color: "475569" }),
           new TextRun({ children: [PageNumber.TOTAL_PAGES], font: "Arial", size: 18, color: "475569" }),
-          new TextRun({ text: `  |  FormRight  |  ${date}`, font: "Arial", size: 18, color: "475569" }),
+          new TextRun({ text: `  |  ${preparedBy}  |  ${date}`, font: "Arial", size: 18, color: "475569" }),
         ],
       }),
     ],
   });
 }
 
-export function coverBlock(O: OrgData, docTitle: string, subtitle: string): (Paragraph)[] {
+export function coverBlock(O: OrgData, docTitle: string, subtitle: string): Paragraph[] {
+  const branding = O.branding;
+  const accent = branding?.primaryColor ?? "1B9AAA";
+  const preparedBy = branding?.firmName ? `Prepared by ${branding.firmName}` : "Prepared by FormRight Document Services";
+
+  const logoParagraph = branding?.logoImage
+    ? [
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 240 },
+          children: [
+            new ImageRun({
+              data: branding.logoImage.data,
+              type: branding.logoImage.type,
+              transformation: { width: 160, height: 80 },
+            }),
+          ],
+        }),
+      ]
+    : [];
+
   return [
-    blank(2880),
+    blank(logoParagraph.length ? 2400 : 2880),
+    ...logoParagraph,
     new Paragraph({
       alignment: AlignmentType.CENTER,
       spacing: { after: 160 },
@@ -209,7 +233,7 @@ export function coverBlock(O: OrgData, docTitle: string, subtitle: string): (Par
     new Paragraph({
       alignment: AlignmentType.CENTER,
       spacing: { after: 80 },
-      children: [new TextRun({ text: docTitle, font: "Arial", size: 52, bold: true, color: "1B9AAA" })],
+      children: [new TextRun({ text: docTitle, font: "Arial", size: 52, bold: true, color: accent })],
     }),
     new Paragraph({
       alignment: AlignmentType.CENTER,
@@ -219,7 +243,7 @@ export function coverBlock(O: OrgData, docTitle: string, subtitle: string): (Par
     new Paragraph({
       alignment: AlignmentType.CENTER,
       spacing: { after: 80 },
-      children: [new TextRun({ text: "Prepared by FormRight Document Services", font: "Arial", size: 20, color: "475569" })],
+      children: [new TextRun({ text: preparedBy, font: "Arial", size: 20, color: "475569" })],
     }),
     new Paragraph({
       alignment: AlignmentType.CENTER,

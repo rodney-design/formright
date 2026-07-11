@@ -6,11 +6,12 @@ import { getDocsForEntity } from "@/lib/entities/entityDocsMap";
 import { orgDataFromRegistration, type RegistrationRow } from "@/lib/entities/orgDataFromRegistration";
 import { generateAllDocsZip } from "@/lib/doc-engine/zip";
 import { generateAndStoreDocument } from "@/lib/doc-engine/generateAndStore";
+import { getFirmBrandingForRegistration } from "@/lib/doc-engine/branding";
 
 export const runtime = "nodejs";
 
 async function loadRegistration(registrationId: string, userId: string, isAdmin: boolean) {
-  const result = await query<RegistrationRow & { user_id: string; entity_type: string }>(
+  const result = await query<RegistrationRow & { user_id: string; entity_type: string; firm_id: string | null }>(
     "SELECT * FROM registrations WHERE id = $1",
     [registrationId]
   );
@@ -34,6 +35,7 @@ export async function GET(req: NextRequest, { params }: { params: { registration
   if (!reg) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const org = orgDataFromRegistration(reg);
+  org.branding = await getFirmBrandingForRegistration(reg.firm_id);
   const family = entityFamily(reg.entity_type);
   const key = req.nextUrl.searchParams.get("key");
   const wantsAll = req.nextUrl.searchParams.get("all") === "1";

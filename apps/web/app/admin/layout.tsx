@@ -30,6 +30,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         </div>
         <div className="flex items-center gap-4 text-sm">
           <span className="text-white/60">{user.email}</span>
+          <Link href="/admin" className="text-white/60 hover:text-white">
+            Pipeline
+          </Link>
+          <Link href="/admin/firms" className="text-white/60 hover:text-white">
+            Pro Firms
+          </Link>
           <Link href="/" className="text-white/60 hover:text-white">
             ← Exit Admin
           </Link>

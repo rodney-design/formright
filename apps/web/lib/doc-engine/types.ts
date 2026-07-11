@@ -11,6 +11,19 @@ export interface BoardMember {
   role: string;
 }
 
+// Phase 4 white-label PDF generation (build-order doc §Phase 4 step 2):
+// applied to cover pages and headers/footers only, not document body text —
+// the builder functions' body content has dozens of hardcoded brand-color
+// literals per file, and rethreading a branding param through all of them
+// is out of scope here. logoImage is pre-fetched bytes (see
+// lib/doc-engine/branding.ts), not a URL, since the docx builders are pure
+// synchronous functions.
+export interface DocBranding {
+  firmName?: string;
+  primaryColor?: string;
+  logoImage?: { data: Buffer; type: "png" | "jpg" | "gif" | "bmp" };
+}
+
 export interface OrgData {
   name: string;
   state: string;
@@ -51,4 +64,7 @@ export interface OrgData {
    * doc key from ENTITY_DOCS_MAP / getDocsForEntity().
    */
   entityType?: string;
+
+  /** Set when this document is generated for a Pro-tier firm's client formation. */
+  branding?: DocBranding;
 }

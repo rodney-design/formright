@@ -3,9 +3,12 @@ import { getRegistrationById } from "@/lib/queries/registrations";
 import { getDocsForEntity } from "@/lib/entities/entityDocsMap";
 import { getStateFilingForRegistration } from "@/lib/queries/stateFilings";
 import { buildFilingWorksheet } from "@/lib/state-filing/worksheet";
+import { getRegisteredAgentOrderForRegistration } from "@/lib/queries/registeredAgent";
+import { buildRegisteredAgentOrderPacket } from "@/lib/registered-agent/worksheet";
 import DownloadButton from "@/components/dashboard/DownloadButton";
 import AdminRegDetailForm from "@/components/admin/AdminRegDetailForm";
 import StateFilingPanel from "@/components/admin/StateFilingPanel";
+import RegisteredAgentPanel from "@/components/admin/RegisteredAgentPanel";
 
 export default async function AdminRegistrationDetailPage({ params }: { params: { id: string } }) {
   const reg = await getRegistrationById(params.id);
@@ -14,6 +17,7 @@ export default async function AdminRegistrationDetailPage({ params }: { params: 
   const docs = getDocsForEntity(reg.entity_type);
   const address = reg.address as { address?: string; city?: string; zip?: string } | null;
   const stateFiling = await getStateFilingForRegistration(reg.id);
+  const registeredAgentOrder = await getRegisteredAgentOrderForRegistration(reg.id);
 
   return (
     <div className="max-w-3xl">
@@ -60,6 +64,10 @@ export default async function AdminRegistrationDetailPage({ params }: { params: 
 
       {stateFiling && (
         <StateFilingPanel filing={stateFiling} worksheet={buildFilingWorksheet(reg)} />
+      )}
+
+      {registeredAgentOrder && (
+        <RegisteredAgentPanel order={registeredAgentOrder} packet={buildRegisteredAgentOrderPacket(reg)} />
       )}
 
       <div className="bg-white border border-gray-200 rounded-2xl p-6 mt-6">

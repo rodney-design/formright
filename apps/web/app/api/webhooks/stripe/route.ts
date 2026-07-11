@@ -4,6 +4,8 @@ import { getStripe } from "@/lib/stripe";
 import { query } from "@/lib/db";
 import { sendRegistrationConfirmationEmail } from "@/lib/email";
 import { ensureStateFiling } from "@/lib/queries/stateFilings";
+import { ensureRegisteredAgentOrder } from "@/lib/queries/registeredAgent";
+import { upsertFirmSubscription } from "@/lib/queries/firmSubscriptions";
 
 export const runtime = "nodejs";
 
@@ -40,8 +42,9 @@ export async function POST(req: NextRequest) {
           orgname: string;
           contact_email: string;
           state: string;
+          notes: string | null;
         }>(
-          "SELECT amount_cents, state_fee_cents, orgname, contact_email, state FROM registrations WHERE id = $1",
+          "SELECT amount_cents, state_fee_cents, orgname, contact_email, state, notes FROM registrations WHERE id = $1",
           [registrationId]
         );
         const registration = regResult.rows[0];
@@ -54,6 +57,9 @@ export async function POST(req: NextRequest) {
             [registrationId, paymentIntent.id, registration.amount_cents, registration.state_fee_cents]
           );
           await ensureStateFiling(registrationId, registration.state);
+          if (purchasedRegisteredAgent(registration.notes)) {
+            await ensureRegisteredAgentOrder(registrationId);
+          }
           await sendRegistrationConfirmationEmail(
             registration.contact_email,
             registration.orgname,
@@ -72,14 +78,19 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // FormRight Comply subscription (build-order doc §Phase 2 step 4).
+  // FormRight Comply subscription (build-order doc §Phase 2 step 4) and
+  // firm per-seat billing (build-order doc §Phase 4 step 4) — distinguished
+  // by which metadata key is present (userId vs. firmId).
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
     if (session.mode === "subscription" && session.subscription) {
-      const userId = session.client_reference_id ?? session.metadata?.userId;
       const subscriptionId =
         typeof session.subscription === "string" ? session.subscription : session.subscription.id;
-      if (userId) {
+      const firmId = session.metadata?.firmId;
+      const userId = session.client_reference_id ?? session.metadata?.userId;
+      if (firmId) {
+        await upsertFirmSeatSubscription(firmId, subscriptionId);
+      } else if (userId) {
         await upsertSubscription(userId, subscriptionId);
       }
     }
@@ -87,13 +98,37 @@ export async function POST(req: NextRequest) {
 
   if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted") {
     const subscription = event.data.object as Stripe.Subscription;
+    const firmId = subscription.metadata?.firmId;
     const userId = subscription.metadata?.userId;
-    if (userId) {
+    if (firmId) {
+      await upsertFirmSeatSubscription(firmId, subscription.id, subscription);
+    } else if (userId) {
       await upsertSubscription(userId, subscription.id, subscription);
     }
   }
 
   return NextResponse.json({ received: true });
+}
+
+function purchasedRegisteredAgent(notes: string | null): boolean {
+  if (!notes) return false;
+  try {
+    const parsed = JSON.parse(notes);
+    const addons = parsed?.addons;
+    return Array.isArray(addons) && addons.includes("registered_agent");
+  } catch {
+    return false;
+  }
+}
+
+async function upsertFirmSeatSubscription(firmId: string, subscriptionId: string, subscription?: Stripe.Subscription) {
+  const stripe = getStripe();
+  const sub = subscription ?? (await stripe.subscriptions.retrieve(subscriptionId));
+  const seats = sub.items.data[0]?.quantity ?? 1;
+  const renewsAt = sub.items.data[0]?.current_period_end
+    ? new Date(sub.items.data[0].current_period_end * 1000)
+    : null;
+  await upsertFirmSubscription(firmId, subscriptionId, sub.status, seats, renewsAt);
 }
 
 async function upsertSubscription(userId: string, subscriptionId: string, subscription?: Stripe.Subscription) {

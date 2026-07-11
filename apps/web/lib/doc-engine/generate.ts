@@ -19,8 +19,8 @@ export async function generateDocBuffer(key: string, org: OrgData): Promise<Buff
     sections: [
       {
         properties: { page: PAGE },
-        headers: { default: mkHeader(cfg.title, org.name) },
-        footers: { default: mkFooter(org.date) },
+        headers: { default: mkHeader(cfg.title, org.name, org.branding) },
+        footers: { default: mkFooter(org.date, org.branding) },
         children,
       },
     ],

@@ -136,7 +136,7 @@ a guarantee.
 Given that, Phase 3 is built as **manual filing status tracking**, not automated e-filing:
 
 - `state_filings` and `state_fees` tables (`db/migrations/003_phase3.sql`).
-- `lib/entities/stateFees.ts`'s `getStateFeeForEntity()` reads entity-type-specific fees from
+- `lib/entities/stateFeesTable.ts`'s `getStateFeeForEntity()` reads entity-type-specific fees from
   `state_fees`, falling back to the old flat `STATE_FEES` rate when no row exists yet. Only a
   few state+entity_type combinations are seeded — the ones the build-order doc gives verified
   figures for (Delaware LLC/C-Corp/Nonprofit, New York's LLC publication-fee callout, California's
@@ -159,3 +159,65 @@ Given that, Phase 3 is built as **manual filing status tracking**, not automated
 - **If a state opens a real filing API later**, or FormRight decides to build portal automation,
   swap the manual step in `lib/state-filing/` for a real submission client — the `state_filings`
   table and status flow underneath don't need to change.
+
+## Registered agent service (Northwest Registered Agent)
+
+The Phase 2 build-order doc flagged registered agent fulfillment as gated on a business decision
+(Northwest's API vs. in-house) rather than a pure build task. That decision landed on Northwest —
+but researching their actual technical surface (same diligence as the Phase 3 state research)
+found **no confirmed public, self-serve API**: Northwest's "Wholesale Registered Agent
+Partnership" is sales-gated (phone/email onboarding with a wholesale specialist), not API key
+issuance. So this is built the same way as Phase 3's state filing tracking:
+
+- `registered_agent_orders` table (`db/migrations/005_registered_agent.sql`), auto-created
+  (`ensureRegisteredAgentOrder`) when a paid registration's `notes.addons` includes
+  `registered_agent` (Stripe webhook). Plan-bundled registered agent (the Standard tier's included
+  "Registered agent (1 year)" feature) doesn't create an order row yet — only the explicit addon
+  purchase does; wiring the bundled case is a follow-up, not silently assumed.
+- `lib/registered-agent/worksheet.ts` builds an order packet (entity name, state, address,
+  contact) for staff to place by phone/email with a Northwest wholesale contact.
+- Admins record the resulting status/confirmation ID via `RegisteredAgentPanel` on the admin
+  registration detail page (`PATCH /api/admin/registered-agent-orders/:id`). Status surfaces to
+  the client on the dashboard Filing Status page.
+- **If Northwest's wholesale API access materializes** (their marketing describes something
+  API-shaped but it couldn't be verified from outside a partner relationship — no primary-source
+  docs, auth scheme, or endpoint list found), swap the manual step for a real client the same way
+  as state filing.
+
+## Phase 4 — B2B Pro Tier & API
+
+**Pro-tier signup is sales-assisted, not self-serve** (brief §4.3: pricing page routes Pro-tier
+CTAs to "Contact Sales," already true since Phase 1's `PricingTabs.tsx`). Concretely: an internal
+admin creates the `firms` row and its founding `firm_admin` via `/admin/firms`
+(`POST /api/admin/firms`) after the sales conversation — there's no public "create your firm"
+flow. Managing the firm afterward (inviting teammates, generating API keys, configuring branding,
+subscribing to seat billing) is self-service from `/firm/*`.
+
+- **Schema**: `firms`, `firm_members`, `api_keys`, `registrations.firm_id`
+  (`db/migrations/004_phase4.sql`), plus a `firm_subscriptions` table not in the doc's literal
+  schema block — kept separate from the personal `subscriptions` table (Comply) since seat billing
+  is scoped to the firm, not a user.
+- **Firm dashboard** (`/firm`) — bulk client list with status view + CSV export, isolated by
+  `firm_id` (`lib/queries/firms.ts`, `getRegistrationsForFirm`). Read-only: firm staff see
+  formation status but don't edit FormRight's internal processing status.
+- **White-label PDFs** — `lib/doc-engine/branding.ts` fetches a firm's logo/color
+  (`firms.branding` JSONB) and threads it through cover pages and headers/footers
+  (`lib/doc-engine/helpers.ts`). Deliberately scoped to covers/headers/footers only, not full
+  document re-theming — the builder functions have dozens of hardcoded brand-color literals per
+  file, and rethreading branding through all of them was out of scope. Set from `/firm/settings`.
+- **REST API v1** (`/api/v1/formations`, `/api/v1/documents`, `/api/v1/status`) — `Authorization:
+  Bearer <key>` auth (`lib/apiAuth.ts`, `lib/queries/apiKeys.ts`; keys are sha256-hashed, shown
+  once at creation in `/firm/api-keys`), every query scoped to the calling firm. Formations
+  created via the API are marked `paid` immediately (no per-formation Stripe checkout) since
+  Pro-tier firms are billed per-seat, not per-formation.
+- **Per-seat billing** — `POST /api/subscriptions/pro/checkout` (firm admin only) creates a
+  Stripe subscription with quantity = active `firm_members` count; quantity resyncs
+  (`syncFirmSeatQuantity`) whenever membership changes (invite accepted on login, member removed).
+  **`FIRM_SEAT_PRICE_CENTS` has no default** — no verified per-seat price exists anywhere in the
+  build-order doc or `pricing.ts` (those are per-formation Pro-tier prices, a different
+  monetization axis) — the checkout endpoint errors instead of charging an invented figure until
+  it's set.
+- **Invitation/handoff flow** — `POST /api/firm/members/invite` (admin only) finds-or-creates the
+  invitee's `users` row and inserts a pending `firm_members` row, emails them
+  (`sendFirmInviteEmail`); accepted automatically on their next magic-link login
+  (`acceptPendingFirmInvites` in `/api/auth/verify`), which also resyncs seat billing.
