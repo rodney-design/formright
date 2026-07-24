@@ -42,10 +42,9 @@ jobs:
       SENDGRID_API_KEY: SG.dummy
       SENDGRID_FROM_EMAIL: ci@formright.test
       NEXT_PUBLIC_APP_URL: http://localhost:3000
-      AWS_REGION: us-east-1
-      AWS_ACCESS_KEY_ID: dummy
-      AWS_SECRET_ACCESS_KEY: dummy
-      S3_BUCKET: formright-ci
+      SUPABASE_URL: https://dummy.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: dummy
+      SUPABASE_STORAGE_BUCKET: formright-ci
       CRON_SECRET: ci-cron-secret
       FIRM_SEAT_PRICE_CENTS: "2500"
       ANTHROPIC_API_KEY: sk-ant-dummy

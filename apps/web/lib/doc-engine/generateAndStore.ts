@@ -1,11 +1,11 @@
 // Phase 2: "generate and store" instead of "generate and download" (build-order
 // doc §Phase 2 step 2). Generates the doc server-side same as Phase 1, then
-// uploads it to S3, records a `documents` row (versioned — each regeneration
-// gets the next version number for that registration+key), and hands back a
-// pre-signed URL instead of streaming the bytes directly.
+// uploads it to Supabase Storage, records a `documents` row (versioned — each
+// regeneration gets the next version number for that registration+key), and
+// hands back a signed URL instead of streaming the bytes directly.
 import "server-only";
 import { query } from "@/lib/db";
-import { uploadDocument, getDocumentUrl } from "@/lib/s3";
+import { uploadDocument, getDocumentUrl } from "@/lib/storage";
 import { generateDocBuffer } from "./generate";
 import { build1023EZPrefillPdf } from "./pdf/irs1023ez";
 import { DOC_CONFIG } from "./docConfig";
@@ -59,15 +59,18 @@ export async function generateAndStoreDocument(
   }
 
   const version = await nextVersion(registrationId, docKey);
-  const s3Key = `documents/${registrationId}/${docKey}-v${version}`;
+  // documents.s3_key predates this storage backend swap — still the object
+  // key column, just no longer literally an S3 key. Left unrenamed to avoid
+  // a migration; see lib/storage.ts for the actual backend.
+  const storageKey = `documents/${registrationId}/${docKey}-v${version}`;
 
-  await uploadDocument(s3Key, buffer, contentType);
+  await uploadDocument(storageKey, buffer, contentType);
   await query(
     `INSERT INTO documents (registration_id, doc_key, s3_key, filename, version)
      VALUES ($1, $2, $3, $4, $5)`,
-    [registrationId, docKey, s3Key, filename, version]
+    [registrationId, docKey, storageKey, filename, version]
   );
 
-  const url = await getDocumentUrl(s3Key);
+  const url = await getDocumentUrl(storageKey);
   return { url, filename };
 }

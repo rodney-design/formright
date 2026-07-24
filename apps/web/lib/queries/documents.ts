@@ -1,6 +1,6 @@
 import "server-only";
 import { query } from "@/lib/db";
-import { getDocumentUrl } from "@/lib/s3";
+import { getDocumentUrl } from "@/lib/storage";
 
 export interface VaultDocument {
   id: string;
@@ -15,9 +15,9 @@ export interface VaultDocument {
 
 // Backing function for GET /api/documents/:userId (build-order doc §Phase 2
 // step 3). Only the latest version per registration+doc_key is returned —
-// older versions stay in S3/the documents table for history, but aren't
-// surfaced in the vault. Pre-signed URLs are generated fresh on every call
-// (they expire after 15 minutes — see lib/s3.ts), not stored.
+// older versions stay in storage/the documents table for history, but aren't
+// surfaced in the vault. Signed URLs are generated fresh on every call (they
+// expire after 15 minutes — see lib/storage.ts), not stored.
 export async function getVaultDocumentsForUser(userId: string): Promise<VaultDocument[]> {
   const result = await query<{
     id: string;
