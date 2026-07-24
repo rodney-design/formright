@@ -60,11 +60,20 @@ export async function POST(req: NextRequest) {
           if (purchasedRegisteredAgent(registration.notes)) {
             await ensureRegisteredAgentOrder(registrationId);
           }
-          await sendRegistrationConfirmationEmail(
-            registration.contact_email,
-            registration.orgname,
-            registrationId
-          );
+          // Payment is already committed at this point — a confirmation-email
+          // failure must not fail the webhook response. Returning non-2xx
+          // would make Stripe retry, and the idempotency check above would
+          // then skip this whole block (including the email) on retry,
+          // silently losing it forever instead of just this once.
+          try {
+            await sendRegistrationConfirmationEmail(
+              registration.contact_email,
+              registration.orgname,
+              registrationId
+            );
+          } catch (err) {
+            console.error(`Failed to send registration confirmation email for ${registrationId}:`, err);
+          }
         }
       }
     }

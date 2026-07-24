@@ -16,7 +16,12 @@ export async function POST(req: NextRequest) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? req.nextUrl.origin;
   const verifyUrl = `${appUrl}/api/auth/verify?token=${token}`;
 
-  await sendMagicLinkEmail(email, verifyUrl);
+  try {
+    await sendMagicLinkEmail(email, verifyUrl);
+  } catch (err) {
+    console.error(`Failed to send magic-link email to ${email}:`, err);
+    return NextResponse.json({ error: "Could not send sign-in email. Please try again." }, { status: 502 });
+  }
 
   return NextResponse.json({ ok: true });
 }

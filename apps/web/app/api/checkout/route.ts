@@ -179,19 +179,29 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const session = await stripe.checkout.sessions.create({
-    mode: "payment",
-    line_items: lineItems,
-    customer_email: data.email,
-    success_url: `${appUrl}/onboard/success?registration=${registrationId}`,
-    cancel_url: `${appUrl}/onboard?step=6&canceled=1`,
-    metadata: { registrationId },
-    payment_intent_data: { metadata: { registrationId } },
-  });
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      line_items: lineItems,
+      customer_email: data.email,
+      success_url: `${appUrl}/onboard/success?registration=${registrationId}`,
+      cancel_url: `${appUrl}/onboard?step=6&canceled=1`,
+      metadata: { registrationId },
+      payment_intent_data: { metadata: { registrationId } },
+    });
 
-  if (!session.url) {
+    if (!session.url) {
+      throw new Error("Stripe checkout session has no url");
+    }
+
+    return NextResponse.json({ url: session.url, registrationId, totalCents });
+  } catch (err) {
+    // Stripe never got a session created for this registration — roll it
+    // back rather than leaving a permanent orphaned "pending" row with no
+    // payment attached and no retry path.
+    console.error(`Failed to create Stripe checkout session for ${registrationId}:`, err);
+    await query("DELETE FROM compliance_events WHERE registration_id = $1", [registrationId]);
+    await query("DELETE FROM registrations WHERE id = $1", [registrationId]);
     return NextResponse.json({ error: "Could not create checkout session" }, { status: 502 });
   }
-
-  return NextResponse.json({ url: session.url, registrationId, totalCents });
 }
