@@ -202,8 +202,16 @@ export async function POST(req: NextRequest) {
     // payment attached and no retry path.
     console.error(`Failed to create Stripe checkout session for ${registrationId}:`, err);
     Sentry.captureException(err);
-    await query("DELETE FROM compliance_events WHERE registration_id = $1", [registrationId]);
-    await query("DELETE FROM registrations WHERE id = $1", [registrationId]);
+    try {
+      await query("DELETE FROM compliance_events WHERE registration_id = $1", [registrationId]);
+      await query("DELETE FROM registrations WHERE id = $1", [registrationId]);
+    } catch (cleanupErr) {
+      // The client still gets a clean error either way — but if cleanup
+      // itself failed, that orphaned registration needs manual attention,
+      // so it's reported distinctly from the original Stripe failure.
+      console.error(`Failed to roll back orphaned registration ${registrationId}:`, cleanupErr);
+      Sentry.captureException(cleanupErr);
+    }
     return NextResponse.json({ error: "Could not create checkout session" }, { status: 502 });
   }
 }
