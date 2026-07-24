@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: formright
+          POSTGRES_PASSWORD: formright
+          POSTGRES_DB: formright
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      PGPASSWORD: formright
+      DATABASE_URL: postgresql://formright:formright@localhost:5432/formright
+      JWT_SECRET: ci-test-secret
+      STRIPE_SECRET_KEY: sk_test_dummy
+      STRIPE_WEBHOOK_SECRET: whsec_dummy
+      STRIPE_PUBLISHABLE_KEY: pk_test_dummy
+      SENDGRID_API_KEY: SG.dummy
+      SENDGRID_FROM_EMAIL: ci@formright.test
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: dummy
+      AWS_SECRET_ACCESS_KEY: dummy
+      S3_BUCKET: formright-ci
+      CRON_SECRET: ci-cron-secret
+      FIRM_SEAT_PRICE_CENTS: "2500"
+      ANTHROPIC_API_KEY: sk-ant-dummy
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install postgresql-client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Install dependencies
+        working-directory: apps/web
+        run: npm ci
+
+      - name: Lint
+        working-directory: apps/web
+        run: npm run lint
+
+      - name: Type check
+        working-directory: apps/web
+        run: npx tsc --noEmit
+
+      - name: Load canonical schema into a fresh database
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/schema.sql
+
+      # db/migrations/001_init.sql (\ir ../schema.sql) currently pulls in the
+      # full canonical schema, not just Phase 1 — so 002-005 can't be replayed
+      # in sequence after it on a fresh database (they'd hit "already exists"
+      # on every table schema.sql already created). Only schema.sql, the
+      # actual source of truth for a fresh install, is verified here.
+
+      - name: Build
+        working-directory: apps/web
+        run: npm run build
