@@ -2,7 +2,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getRegistrationsForUser } from "@/lib/queries/registrations";
 import { getStateFilingForRegistration } from "@/lib/queries/stateFilings";
 import { getRegisteredAgentOrderForRegistration } from "@/lib/queries/registeredAgent";
-import { getDocumentUrl } from "@/lib/s3";
+import { getDocumentUrl } from "@/lib/storage";
 import StatusBadge from "@/components/dashboard/StatusBadge";
 import DownloadButton from "@/components/dashboard/DownloadButton";
 

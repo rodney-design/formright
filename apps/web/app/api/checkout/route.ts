@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 import { query } from "@/lib/db";
 import { getStripe } from "@/lib/stripe";
@@ -179,19 +180,38 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const session = await stripe.checkout.sessions.create({
-    mode: "payment",
-    line_items: lineItems,
-    customer_email: data.email,
-    success_url: `${appUrl}/onboard/success?registration=${registrationId}`,
-    cancel_url: `${appUrl}/onboard?step=6&canceled=1`,
-    metadata: { registrationId },
-    payment_intent_data: { metadata: { registrationId } },
-  });
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      line_items: lineItems,
+      customer_email: data.email,
+      success_url: `${appUrl}/onboard/success?registration=${registrationId}`,
+      cancel_url: `${appUrl}/onboard?step=6&canceled=1`,
+      metadata: { registrationId },
+      payment_intent_data: { metadata: { registrationId } },
+    });
 
-  if (!session.url) {
+    if (!session.url) {
+      throw new Error("Stripe checkout session has no url");
+    }
+
+    return NextResponse.json({ url: session.url, registrationId, totalCents });
+  } catch (err) {
+    // Stripe never got a session created for this registration — roll it
+    // back rather than leaving a permanent orphaned "pending" row with no
+    // payment attached and no retry path.
+    console.error(`Failed to create Stripe checkout session for ${registrationId}:`, err);
+    Sentry.captureException(err);
+    try {
+      await query("DELETE FROM compliance_events WHERE registration_id = $1", [registrationId]);
+      await query("DELETE FROM registrations WHERE id = $1", [registrationId]);
+    } catch (cleanupErr) {
+      // The client still gets a clean error either way — but if cleanup
+      // itself failed, that orphaned registration needs manual attention,
+      // so it's reported distinctly from the original Stripe failure.
+      console.error(`Failed to roll back orphaned registration ${registrationId}:`, cleanupErr);
+      Sentry.captureException(cleanupErr);
+    }
     return NextResponse.json({ error: "Could not create checkout session" }, { status: 502 });
   }
-
-  return NextResponse.json({ url: session.url, registrationId, totalCents });
 }

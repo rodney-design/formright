@@ -43,7 +43,7 @@ export default function PrivacyPage() {
       <h2>3. Data Sharing</h2>
       <p>We share your information only in the following circumstances:</p>
       <ul>
-        <li><strong>Service providers:</strong> Stripe (payments), AWS (document storage), and email service providers, all subject to data processing agreements</li>
+        <li><strong>Service providers:</strong> Stripe (payments), Supabase (database and document storage), and email service providers, all subject to data processing agreements</li>
         <li><strong>Government agencies:</strong> State incorporation offices and the IRS, as necessary to fulfill your filing service</li>
         <li><strong>Legal compliance:</strong> Where required by law, court order, or to protect the rights and safety of FormRight and its users</li>
       </ul>
@@ -51,9 +51,9 @@ export default function PrivacyPage() {
       <h2>4. Data Storage and Security</h2>
       <p>
         Your documents and personal data are stored on encrypted servers
-        hosted on AWS. We use industry-standard SSL/TLS encryption for all
-        data in transit. Access to client data is restricted to authorized
-        FormRight staff with a legitimate business need.
+        hosted on Supabase. We use industry-standard SSL/TLS encryption for
+        all data in transit. Access to client data is restricted to
+        authorized FormRight staff with a legitimate business need.
       </p>
       <p>
         While we implement reasonable security measures, no system is

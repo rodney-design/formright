@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import type Stripe from "stripe";
 import { getStripe } from "@/lib/stripe";
 import { query } from "@/lib/db";
@@ -56,15 +57,37 @@ export async function POST(req: NextRequest) {
              VALUES ($1, $2, $3, $4, 'succeeded')`,
             [registrationId, paymentIntent.id, registration.amount_cents, registration.state_fee_cents]
           );
-          await ensureStateFiling(registrationId, registration.state);
-          if (purchasedRegisteredAgent(registration.notes)) {
-            await ensureRegisteredAgentOrder(registrationId);
+          // Payment is already committed at this point — none of the
+          // following steps can be allowed to fail the webhook response.
+          // Returning non-2xx would make Stripe retry, and the idempotency
+          // check above would then skip this entire block — including
+          // whichever of these hadn't run yet — on every future retry,
+          // since a payment row now exists. Each step is isolated so one
+          // failure doesn't take the others down with it.
+          try {
+            await ensureStateFiling(registrationId, registration.state);
+          } catch (err) {
+            console.error(`Failed to create state filing for ${registrationId}:`, err);
+            Sentry.captureException(err);
           }
-          await sendRegistrationConfirmationEmail(
-            registration.contact_email,
-            registration.orgname,
-            registrationId
-          );
+          if (purchasedRegisteredAgent(registration.notes)) {
+            try {
+              await ensureRegisteredAgentOrder(registrationId);
+            } catch (err) {
+              console.error(`Failed to create registered agent order for ${registrationId}:`, err);
+              Sentry.captureException(err);
+            }
+          }
+          try {
+            await sendRegistrationConfirmationEmail(
+              registration.contact_email,
+              registration.orgname,
+              registrationId
+            );
+          } catch (err) {
+            console.error(`Failed to send registration confirmation email for ${registrationId}:`, err);
+            Sentry.captureException(err);
+          }
         }
       }
     }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { updateStateFiling } from "@/lib/queries/stateFilings";
 import { FILING_STATUSES, type FilingStatus } from "@/lib/state-filing/status";
-import { uploadDocument } from "@/lib/s3";
+import { uploadDocument } from "@/lib/storage";
 
 export const runtime = "nodejs";
 
@@ -41,9 +41,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
   if (stampedDoc instanceof File && stampedDoc.size > 0) {
     const buffer = Buffer.from(await stampedDoc.arrayBuffer());
-    const s3Key = `state-filings/${params.id}/stamped_${Date.now()}_${stampedDoc.name}`;
-    await uploadDocument(s3Key, buffer, stampedDoc.type || "application/pdf");
-    update.stampedDocS3Key = s3Key;
+    const storageKey = `state-filings/${params.id}/stamped_${Date.now()}_${stampedDoc.name}`;
+    await uploadDocument(storageKey, buffer, stampedDoc.type || "application/pdf");
+    update.stampedDocS3Key = storageKey;
   }
 
   const updated = await updateStateFiling(params.id, update);

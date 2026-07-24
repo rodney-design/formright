@@ -45,8 +45,8 @@ See `.env.example`. All of these are required for the app to function; nothing i
 | `SENDGRID_FROM_EMAIL` | From-address for those emails |
 | `SENTRY_DSN` | Enables server-side error reporting when set; app runs fine without it |
 | `NEXT_PUBLIC_APP_URL` | Absolute base URL used in emails and redirects |
-| `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | S3 access for the document vault (Phase 2). Credentials are optional if running on infra with an attached IAM role — the AWS SDK's default credential chain handles that case. |
-| `S3_BUCKET` | Bucket generated documents are uploaded to |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Supabase Storage access for the document vault (Phase 2). The service-role key bypasses row-level security for server-side access to a private bucket — never expose it to the client. |
+| `SUPABASE_STORAGE_BUCKET` | Bucket generated documents are uploaded to |
 | `CRON_SECRET` | Shared secret the compliance-reminder cron route checks against the `Authorization: Bearer` header Vercel Cron sends |
 
 ### Promoting a user to admin
@@ -96,11 +96,15 @@ db/
 
 ## Phase 2 — Document Vault & Compliance
 
-- **Document generation now stores to S3** instead of only streaming the generated file back.
-  `GET /api/documents/registration/:registrationId?key=...` (or `?all=1` for the zip) generates,
-  uploads to S3, writes a `documents` row, and redirects to a pre-signed URL. Each regeneration
-  is a new `version` row rather than overwriting the previous one.
-- **Document vault API** — `GET /api/documents/:userId` returns pre-signed URLs for a user's
+- **Document generation now stores to Supabase Storage** instead of only streaming the generated
+  file back. `GET /api/documents/registration/:registrationId?key=...` (or `?all=1` for the zip)
+  generates, uploads to a private bucket, writes a `documents` row, and redirects to a signed URL.
+  Each regeneration is a new `version` row rather than overwriting the previous one. (Originally
+  built on S3 — swapped for Supabase Storage to keep AWS out of the Phase 1 deployment target;
+  `lib/storage.ts` is the only place this is wired in. The `documents.s3_key` /
+  `state_filings.stamped_doc_s3_key` columns predate the swap and still hold the object key, just
+  no longer literally an S3 key — left unrenamed to avoid a migration for a label-only change.)
+- **Document vault API** — `GET /api/documents/:userId` returns signed URLs for a user's
   already-generated documents (`lib/queries/documents.ts`). The dashboard Documents tab uses this
   to show "Download" vs. "Generate" per document.
 - **FormRight Comply subscription** — real recurring Stripe billing ($149/yr), separate from the
@@ -149,12 +153,12 @@ Given that, Phase 3 is built as **manual filing status tracking**, not automated
   state's own portal by hand.
 - A `state_filings` row is auto-created (`ensureStateFiling`) when a registration's payment
   succeeds (Stripe webhook). Admins update `filing_status`/`state_confirmation_id` and attach the
-  stamped certificate (uploaded to S3) via the `StateFilingPanel` on the admin registration detail
-  page (`PATCH /api/admin/state-filings/:id`) after filing through the state's portal directly.
-  This is the "filing status webhook/polling" build-order doc step, done manually since no state
-  offers a real one yet.
+  stamped certificate (uploaded to Supabase Storage) via the `StateFilingPanel` on the admin
+  registration detail page (`PATCH /api/admin/state-filings/:id`) after filing through the state's
+  portal directly. This is the "filing status webhook/polling" build-order doc step, done manually
+  since no state offers a real one yet.
 - Client dashboard's Filing Status page now shows the real `state_filings` status and a stamped
-  certificate download link (pre-signed S3 URL) once approved, instead of only the coarse
+  certificate download link (signed URL) once approved, instead of only the coarse
   `registrations.status` timeline.
 - **If a state opens a real filing API later**, or FormRight decides to build portal automation,
   swap the manual step in `lib/state-filing/` for a real submission client — the `state_filings`
