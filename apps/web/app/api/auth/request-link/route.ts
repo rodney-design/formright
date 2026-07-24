@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { createMagicLinkToken } from "@/lib/auth";
 import { sendMagicLinkEmail } from "@/lib/email";
 
@@ -20,6 +21,7 @@ export async function POST(req: NextRequest) {
     await sendMagicLinkEmail(email, verifyUrl);
   } catch (err) {
     console.error(`Failed to send magic-link email to ${email}:`, err);
+    Sentry.captureException(err);
     return NextResponse.json({ error: "Could not send sign-in email. Please try again." }, { status: 502 });
   }
 

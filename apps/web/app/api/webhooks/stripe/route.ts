@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import type Stripe from "stripe";
 import { getStripe } from "@/lib/stripe";
 import { query } from "@/lib/db";
@@ -73,6 +74,7 @@ export async function POST(req: NextRequest) {
             );
           } catch (err) {
             console.error(`Failed to send registration confirmation email for ${registrationId}:`, err);
+            Sentry.captureException(err);
           }
         }
       }

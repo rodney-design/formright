@@ -2,8 +2,16 @@ name: CI
 
 on:
   push:
-    branches: ["**"]
+    # Feature/PR branches are validated via pull_request below; scoping push
+    # to just the default branch avoids running CI twice for the same commit
+    # (once per event) whenever a branch has an open PR.
+    branches:
+      - claude/build-it-ntpntq
   pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-and-test:

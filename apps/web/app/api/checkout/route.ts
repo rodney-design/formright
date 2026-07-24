@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 import { query } from "@/lib/db";
 import { getStripe } from "@/lib/stripe";
@@ -200,6 +201,7 @@ export async function POST(req: NextRequest) {
     // back rather than leaving a permanent orphaned "pending" row with no
     // payment attached and no retry path.
     console.error(`Failed to create Stripe checkout session for ${registrationId}:`, err);
+    Sentry.captureException(err);
     await query("DELETE FROM compliance_events WHERE registration_id = $1", [registrationId]);
     await query("DELETE FROM registrations WHERE id = $1", [registrationId]);
     return NextResponse.json({ error: "Could not create checkout session" }, { status: 502 });
