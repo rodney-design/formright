@@ -15,8 +15,53 @@ import {
   TextRun,
   WidthType,
 } from "docx";
+import { entityFamily } from "@/lib/entities/entityFamily";
 import { blank, coverBlock, divider, h1, h2, h3, p } from "../helpers";
 import type { OrgData } from "../types";
+
+// SS-4 line 8a entity-type description and the corresponding IRS.gov online
+// EIN-wizard navigation step. Previously hardcoded to the nonprofit-only
+// values regardless of entity type — buildEIN() is shared by all 7 entity
+// families via DOC_CONFIG's `ein` key, so an LLC or C-Corp founder was being
+// told to file their EIN application as a nonprofit. See also
+// buildResolutionsCorp() in builders/corp.ts for the same class of bug in
+// the shared resolutions template.
+function einEntityInfo(O: OrgData): { typeLabel: string; wizardStep: string; afterEinBullet: string | null } {
+  const family = entityFamily(O.entityType);
+  switch (family) {
+    case "llc":
+      return {
+        typeLabel: "Limited liability company (LLC)",
+        wizardStep: 'Select "Limited Liability Company (LLC)"',
+        afterEinBullet: null,
+      };
+    case "scorp":
+      return {
+        typeLabel: "Corporation (S election filed separately via Form 2553)",
+        wizardStep: 'Select "View Additional Types" → "Corporations" → "Corporation"',
+        afterEinBullet: "Filing IRS Form 2553 (S-Corp election)",
+      };
+    case "sole":
+      return {
+        typeLabel: "Sole proprietor",
+        wizardStep: 'Select "Sole Proprietor"',
+        afterEinBullet: null,
+      };
+    case "nonprofit":
+      return {
+        typeLabel: "Other nonprofit organization",
+        wizardStep: 'Select "View Additional Types, Including Tax-Exempt" → "Other Nonprofit/Tax-Exempt Organizations"',
+        afterEinBullet: "Filing IRS Form 1023 or 1023-EZ",
+      };
+    default:
+      // ccorp, benefit, pc
+      return {
+        typeLabel: "Corporation",
+        wizardStep: 'Select "View Additional Types" → "Corporations" → "Corporation"',
+        afterEinBullet: null,
+      };
+  }
+}
 
 function bdr(c: string) {
   return {
@@ -286,6 +331,7 @@ export function buildMinutes(O: OrgData) {
 }
 
 export function buildEIN(O: OrgData) {
+  const einInfo = einEntityInfo(O);
   const infoTable = new Table({
     width: { size: 9360, type: WidthType.DXA },
     columnWidths: [3600, 5760],
@@ -294,7 +340,7 @@ export function buildEIN(O: OrgData) {
       ["Line 3 — Responsible Party", O.contact],
       ["Line 4a — Mailing Address", O.address],
       ["Line 4b — City, State, ZIP", `${O.city}, ${O.state} ${O.zip}`],
-      ["Line 8a — Entity Type", "Other nonprofit organization"],
+      ["Line 8a — Entity Type", einInfo.typeLabel],
       ["Line 9a — Reason for Applying", "Started new business"],
       ["Line 10 — Date Business Started", O.date],
       ["Line 11 — Fiscal Year End", O.fiscal.split(" ")[0]],
@@ -338,7 +384,7 @@ export function buildEIN(O: OrgData) {
     p("Step 1:", { bold: true, after: 40 }),
     p('Go to IRS.gov → Businesses → Apply for EIN Online'),
     p("Step 2:", { bold: true, after: 40 }),
-    p('Select "View Additional Types, Including Tax-Exempt" → "Other Nonprofit/Tax-Exempt Organizations"'),
+    p(einInfo.wizardStep),
     p("Step 3:", { bold: true, after: 40 }),
     p('Select "Started a new business" as the reason for applying'),
     p("Step 4:", { bold: true, after: 40 }),
@@ -350,8 +396,8 @@ export function buildEIN(O: OrgData) {
     h2("After Receiving Your EIN"),
     p("Record your EIN immediately and save your CP 575 confirmation letter. You will need it for:", { bold: true }),
     p("Opening your bank account", { numbering: "bullets" }),
-    p("Filing IRS Form 1023 or 1023-EZ", { numbering: "bullets" }),
-    p("State registrations and grant applications", { numbering: "bullets" }),
+    ...(einInfo.afterEinBullet ? [p(einInfo.afterEinBullet, { numbering: "bullets" })] : []),
+    p("State registrations and business licenses", { numbering: "bullets" }),
     blank(),
     p(`Your EIN: ___-_______`, { bold: true, size: 28, color: "1B9AAA" }),
     p("(Record here once received)", { italic: true, color: "475569" }),

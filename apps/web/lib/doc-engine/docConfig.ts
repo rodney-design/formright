@@ -44,6 +44,7 @@ import {
   buildForm2553,
   buildFounderStock,
   buildMinutesCorp,
+  buildResolutionsCorp,
   buildStockLedger,
 } from "./builders/corp";
 import { buildArticlesBenefit, buildBenefitReport } from "./builders/benefit";
@@ -77,6 +78,11 @@ const DOC_CONFIG_EXTENDED: Record<string, DocConfigEntry> = {
   articles_llc: { fn: buildArticlesLLC, filename: "01_Articles_of_Organization.docx", title: "Articles of Organization" },
   op_agreement: { fn: buildOperatingAgreement, filename: "02_Operating_Agreement.docx", title: "Operating Agreement" },
   minutes_corp: { fn: buildMinutesCorp, filename: "03_Initial_Meeting_Minutes.docx", title: "Initial Meeting Minutes" },
+  // Shared by LLC + all for-profit corp families (ccorp/scorp/benefit/pc) —
+  // buildResolutionsCorp() branches internally on entityFamily() the same way
+  // buildMinutesCorp() above does. Nonprofit keeps its own separate
+  // `resolutions` entry (DOC_CONFIG_NONPROFIT) — never routed through here.
+  resolutions_corp: { fn: buildResolutionsCorp, filename: "04_Resolution_Templates.docx", title: "Resolution Templates" },
 
   // For-profit corps (C, S, Benefit, PC share these)
   articles_corp: { fn: buildArticlesCorp, filename: "01_Articles_of_Incorporation.docx", title: "Articles of Incorporation" },

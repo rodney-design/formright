@@ -582,3 +582,150 @@ export function buildMinutesCorp(O: OrgData) {
     p(`${isLLC ? "Secretary / Managing Member" : "Secretary"}: _______________________________     Date: ________________`),
   ];
 }
+
+// ── Resolution Templates, shared by LLC + for-profit corp families ──────────
+// Previously this document key fell through to nonprofit.ts's buildResolutions()
+// for every entity type, including two resolutions (Executive Director
+// appointment, grant-application authorization) that are meaningless outside
+// a nonprofit. Split out here with the same isLLC branching buildMinutesCorp()
+// already established, so LLCs get member/operating-agreement/membership-interest
+// language and corporations get director/bylaws/stock language instead of
+// nonprofit board language.
+export function buildResolutionsCorp(O: OrgData) {
+  const isLLC = entityFamily(O.entityType) === "llc";
+  const entityLabel = isLLC ? "Company" : "Corporation";
+  const bodyLabel = isLLC ? "Members" : "Board of Directors";
+  const signerLabel = isLLC ? "Managing Member" : "Secretary";
+  const govDocLabel = isLLC ? "Operating Agreement" : "Bylaws";
+  const docTitle = isLLC ? "Member Resolution Templates" : "Board Resolution Templates";
+
+  const metaTable = () =>
+    new Table({
+      width: { size: 9360, type: WidthType.DXA },
+      columnWidths: [2000, 7360],
+      rows: [
+        ["Organization:", O.name],
+        ["Date:", O.date],
+        ["Meeting Type:", "☐ Regular  ☐ Special  ☐ Written Consent"],
+        ["Vote:", "☐ Unanimous  ☐ __ For / __ Against / __ Abstain"],
+      ].map(
+        ([l, v]) =>
+          new TableRow({
+            children: [
+              new TableCell({
+                width: { size: 2000, type: WidthType.DXA },
+                margins: { top: 80, bottom: 80, left: 120, right: 120 },
+                shading: { fill: "E6F7F9", type: ShadingType.CLEAR },
+                borders: bdr("E2E8F0"),
+                children: [new Paragraph({ children: [new TextRun({ text: l, font: "Arial", size: 20, bold: true, color: "0D1B2A" })] })],
+              }),
+              new TableCell({
+                width: { size: 7360, type: WidthType.DXA },
+                margins: { top: 80, bottom: 80, left: 120, right: 120 },
+                borders: bdr("E2E8F0"),
+                children: [new Paragraph({ children: [new TextRun({ text: v, font: "Arial", size: 20 })] })],
+              }),
+            ],
+          })
+      ),
+    });
+
+  const signatureLine = () => p(`${signerLabel}: _______________________________     Date: ________________`);
+
+  return [
+    ...coverBlock(O, docTitle, `Standard Resolutions for ${entityLabel} Governance Actions`),
+    h1(docTitle),
+    p("Complete the bracketed fields and record the vote in meeting minutes.", { italic: true, color: "475569" }),
+    blank(),
+
+    h2("Resolution 1 — Authorization of Bank Account"),
+    metaTable(),
+    blank(160),
+    p(
+      `RESOLVED, that the ${entityLabel} is authorized to open and maintain a bank account at [BANK NAME], and the following individuals are authorized as signatories:`,
+      { italic: true }
+    ),
+    blank(80),
+    p("Authorized Signatory 1: _______________________________  Title: _______________", { after: 100 }),
+    p("Authorized Signatory 2: _______________________________  Title: _______________"),
+    blank(240),
+    signatureLine(),
+    blank(),
+    divider(),
+    blank(),
+
+    h2("Resolution 2 — Approval of Annual Budget"),
+    p(
+      `RESOLVED, that the ${bodyLabel} of ${O.name} approves the operating budget for fiscal year ending [DATE], in the total amount of $[AMOUNT], attached as Exhibit A.`,
+      { italic: true }
+    ),
+    blank(240),
+    signatureLine(),
+    blank(),
+    divider(),
+    blank(),
+
+    h2(isLLC ? "Resolution 3 — Appointment of Officers / Managers" : "Resolution 3 — Appointment of Officers"),
+    p(
+      `RESOLVED, that the ${bodyLabel} hereby appoints the following ${isLLC ? "officers/managers" : "officers"} of the ${entityLabel}, each to serve until removed or replaced:`,
+      { italic: true }
+    ),
+    blank(80),
+    ...(O.board.length > 0
+      ? O.board.map((m) => p(`${m.name} — ${m.role}`, { numbering: "bullets", after: 60 }))
+      : [p("[NAME] — [TITLE]", { numbering: "bullets" })]),
+    blank(240),
+    signatureLine(),
+    blank(),
+    divider(),
+    blank(),
+
+    h2(isLLC ? "Resolution 4 — Authorization to Issue Membership Interests" : "Resolution 4 — Authorization of Founder Stock Issuance"),
+    p(
+      isLLC
+        ? `RESOLVED, that the Company is authorized to issue membership interests to the following Members in the percentages set forth below, subject to the terms of the Operating Agreement:`
+        : `RESOLVED, that the Corporation is authorized to issue an aggregate of [NUMBER] shares of Common Stock to the following founders in consideration of cash, services rendered, and/or assignment of intellectual property, subject to execution of a Founder Stock Purchase Agreement and, where applicable, a vesting schedule set forth therein:`,
+      { italic: true }
+    ),
+    blank(80),
+    ...(O.board.length > 0
+      ? O.board.map((m) => p(`${m.name} — ${isLLC ? "[__]% membership interest" : "[NUMBER] shares"}`, { numbering: "bullets", after: 60 }))
+      : [p(isLLC ? "[NAME] — [__]% membership interest" : "[NAME] — [NUMBER] shares", { numbering: "bullets" })]),
+    blank(240),
+    signatureLine(),
+    blank(),
+    divider(),
+    blank(),
+
+    h2(`Resolution 5 — Amendment of ${govDocLabel}`),
+    p(`RESOLVED, that the ${govDocLabel} of ${O.name} are hereby amended as follows:`, { italic: true }),
+    blank(80),
+    p("[DESCRIBE AMENDMENT HERE]", { color: "1B9AAA", italic: true }),
+    blank(80),
+    p(
+      `Note: ${govDocLabel} amendments require ${isLLC ? "unanimous written consent of all Members, unless the Operating Agreement specifies a lower threshold" : "a two-thirds (2/3) vote of the full Board"}.`,
+      { bold: true, color: "475569" }
+    ),
+    blank(240),
+    signatureLine(),
+    blank(),
+    divider(),
+    blank(),
+
+    h2("Resolution 6 — Written Consent in Lieu of Meeting"),
+    p(
+      `The undersigned, being all of the ${bodyLabel}, hereby consent to and adopt the following resolution without a meeting:`,
+      { italic: true }
+    ),
+    blank(80),
+    p("[INSERT RESOLUTION TEXT HERE]", { color: "1B9AAA", italic: true }),
+    blank(240),
+    ...O.board.map(
+      (m) =>
+        new Paragraph({
+          spacing: { after: 160 },
+          children: [new TextRun({ text: `${m.name}, ${m.role}:  _______________________________    Date: ________`, font: "Arial", size: 22 })],
+        })
+    ),
+  ];
+}
