@@ -1,124 +1,140 @@
 import Link from "next/link";
 
-const ENTITY_PILLS = [
-  { label: "LLC", bg: "bg-[#00897B]/10", border: "border-[#00897B]/25", text: "text-[#4DB6AC]" },
-  { label: "C-Corp", bg: "bg-[#7C3AED]/10", border: "border-[#7C3AED]/25", text: "text-[#A78BFA]" },
-  { label: "S-Corp", bg: "bg-[#F9A825]/10", border: "border-[#F9A825]/25", text: "text-gold" },
-  { label: "Nonprofit 501(c)(3)", bg: "bg-[#0EA5E9]/10", border: "border-[#0EA5E9]/25", text: "text-[#38BDF8]" },
-  { label: "Sole Proprietorship", bg: "bg-[#F97316]/10", border: "border-[#F97316]/25", text: "text-[#FB923C]" },
-  { label: "Benefit Corp", bg: "bg-[#16A34A]/10", border: "border-[#16A34A]/25", text: "text-[#4ADE80]" },
-  { label: "Professional Corp", bg: "bg-[#6366F1]/10", border: "border-[#6366F1]/25", text: "text-[#818CF8]" },
+const ENTITY_TABS = [
+  "LLC",
+  "C-Corp",
+  "S-Corp",
+  "Nonprofit 501(c)(3)",
+  "Sole Proprietorship",
+  "Benefit Corp",
+  "Professional Corp",
 ];
 
-const DOC_ITEMS = [
-  { icon: "📄", iconBg: "bg-[#1B9AAA]/20", name: "Articles of Incorporation", sub: "State-specific · Customized", status: "Ready" },
-  { icon: "📋", iconBg: "bg-[#F2C94C]/15", name: "IRS-Ready Bylaws", sub: "Governance compliant", status: "Ready" },
-  { icon: "🤝", iconBg: "bg-[#10B981]/15", name: "Conflict of Interest Policy", sub: "Board approved template", status: "Ready" },
-  { icon: "🏦", iconBg: "bg-[#8B5CF6]/15", name: "EIN Application (SS-4)", sub: "Federal filing", status: "Generating" },
-  { icon: "🔖", iconBg: "bg-[#EF4444]/[.12]", name: "IRS Form 1023-EZ Draft", sub: "Tax-exempt status", status: "Generating" },
+const DOC_FIELDS = [
+  { label: "ENTITY NAME", value: "Bright Futures Collective, Inc." },
+  { label: "STATE OF FORMATION", value: "Delaware" },
+  { label: "ENTITY TYPE", value: "Nonprofit Corporation" },
+  { label: "REGISTERED AGENT", value: "On file" },
 ];
+
+function FilingSeal() {
+  return (
+    <svg
+      viewBox="0 0 160 160"
+      className="animate-stamp absolute -right-6 -top-8 h-32 w-32 mix-blend-multiply sm:h-40 sm:w-40"
+      style={{ transformOrigin: "60% 55%" }}
+      aria-hidden="true"
+    >
+      <defs>
+        <path id="sealArcTop" d="M 20,80 A 60,60 0 0 1 140,80" />
+      </defs>
+      <circle cx="80" cy="80" r="70" fill="none" stroke="#A8351D" strokeWidth="2.5" opacity="0.85" />
+      <circle cx="80" cy="80" r="59" fill="none" stroke="#A8351D" strokeWidth="1.2" opacity="0.7" />
+      <text fill="#A8351D" fontSize="12.5" fontWeight="700" letterSpacing="2.5" opacity="0.85">
+        <textPath href="#sealArcTop" startOffset="50%" textAnchor="middle">
+          FORMRIGHT · FILED ·
+        </textPath>
+      </text>
+      <path
+        d="M52 84 L71 103 L110 60"
+        fill="none"
+        stroke="#A8351D"
+        strokeWidth="6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        opacity="0.85"
+      />
+      <text
+        x="80"
+        y="128"
+        textAnchor="middle"
+        fill="#A8351D"
+        fontSize="10"
+        fontWeight="700"
+        letterSpacing="1.5"
+        opacity="0.8"
+      >
+        APPROVED
+      </text>
+    </svg>
+  );
+}
 
 export default function Hero() {
   return (
-    <section className="relative flex min-h-[88vh] items-center overflow-hidden bg-navy px-6 py-[100px] md:px-12">
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(ellipse 70% 90% at 75% 50%, rgba(0,137,123,.13) 0%, transparent 65%)," +
-            "radial-gradient(ellipse 50% 70% at 5% 90%, rgba(249,168,37,.08) 0%, transparent 60%)," +
-            "radial-gradient(ellipse 40% 50% at 50% 0%, rgba(124,58,237,.07) 0%, transparent 60%)",
-        }}
-      />
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          backgroundImage:
-            "linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px)",
-          backgroundSize: "60px 60px",
-        }}
-      />
+    <section className="relative overflow-hidden bg-paper px-6 py-[88px] md:px-12">
+      <div className="bg-ledger pointer-events-none absolute inset-0" />
 
-      <div className="relative z-10 mx-auto grid max-w-[1100px] grid-cols-1 items-center gap-16 lg:grid-cols-2 lg:gap-20">
+      <div className="relative z-10 mx-auto grid max-w-[1120px] grid-cols-1 items-center gap-16 lg:grid-cols-[1.1fr_1fr] lg:gap-14">
         <div>
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-gold/25 bg-gold/[.12] px-4 py-[6px] text-[.78rem] font-semibold uppercase tracking-[.08em] text-gold">
-            <span className="mr-1 inline-block h-[7px] w-[7px] animate-pulse rounded-full bg-gold" />
-            v2.0 — All Entity Types Now Live
+          <div className="mb-6 flex items-center gap-3 font-sans text-[.78rem] font-bold uppercase tracking-[.14em] text-stamp">
+            <span className="h-px w-8 bg-stamp/40" />
+            Form No. FR-2.0 — All Entity Types Live
           </div>
-          <h1 className="mb-6 font-serif text-[clamp(2.8rem,5vw,4.2rem)] leading-[1.1] tracking-[-.02em] text-white">
-            Business Formation for <em className="italic text-teal-light">Every Founder.</em>
+          <h1 className="mb-6 font-serif text-[clamp(2.6rem,5vw,4rem)] leading-[1.08] tracking-[-.02em] text-ink">
+            Business formation for <em className="text-stamp not-italic italic">every founder.</em>
           </h1>
-          <p className="mb-10 text-[1.1rem] font-light leading-[1.75] text-white/60">
-            From LLCs to Nonprofits, C-Corps to Benefit Corporations — FormRight
-            guides you through every step of U.S. business formation with
-            intelligence, accuracy, and plain-language clarity.
+          <p className="mb-9 max-w-[480px] text-[1.05rem] font-light leading-[1.75] text-ink-faint">
+            From LLCs to nonprofits, C-Corps to Benefit Corporations —
+            FormRight guides you through every step of U.S. business
+            formation, and hands you back a real, state-accepted filing.
           </p>
-          <div className="mb-8 flex flex-wrap gap-[7px]">
-            {ENTITY_PILLS.map((pill) => (
-              <span
-                key={pill.label}
-                className={`rounded-full border px-[11px] py-1 text-[.72rem] font-semibold ${pill.bg} ${pill.border} ${pill.text}`}
-              >
-                {pill.label}
+
+          <div className="mb-9 flex flex-wrap gap-x-4 gap-y-[6px] border-y border-rule py-4 font-mono text-[.72rem] uppercase tracking-[.06em] text-ink-faint">
+            {ENTITY_TABS.map((label, i) => (
+              <span key={label} className="flex items-center gap-4">
+                {label}
+                {i < ENTITY_TABS.length - 1 && <span className="text-rule">/</span>}
               </span>
             ))}
           </div>
+
           <div className="flex flex-wrap gap-4">
             <Link
               href="/onboard"
-              className="inline-flex items-center gap-2 rounded-brand bg-gold px-9 py-[15px] font-sans text-base font-bold text-navy shadow-gold transition-all hover:-translate-y-0.5 hover:bg-[#FFB300]"
+              className="inline-flex items-center gap-2 rounded bg-stamp px-9 py-[15px] font-sans text-base font-bold text-paper-white transition-all hover:-translate-y-0.5 hover:bg-stamp-dark"
             >
               Start Your Formation →
             </Link>
             <Link
               href="/#pricing-anchor"
-              className="inline-flex items-center gap-2 rounded-brand border-2 border-white/20 px-[34px] py-[13px] font-sans text-base font-semibold text-white/70 transition-all hover:bg-teal-pale hover:text-navy"
+              className="inline-flex items-center gap-2 rounded border-2 border-ink/20 px-[34px] py-[13px] font-sans text-base font-semibold text-ink-faint transition-all hover:border-ink/40 hover:text-ink"
             >
               See Pricing
             </Link>
           </div>
-          <div className="mt-8 flex flex-wrap gap-6">
-            <div className="flex items-center gap-2 text-[.82rem] text-white/50">
-              <span className="text-gold">✓</span> All 50 states + D.C.
-            </div>
-            <div className="flex items-center gap-2 text-[.82rem] text-white/50">
-              <span className="text-gold">✓</span> 7 entity types
-            </div>
-            <div className="flex items-center gap-2 text-[.82rem] text-white/50">
-              <span className="text-gold">✓</span> No legal jargon
-            </div>
-          </div>
         </div>
 
-        <div className="rounded-3xl border border-white/[.08] bg-white/[.04] p-8 backdrop-blur-sm">
-          <div className="mb-4 text-[.7rem] font-bold uppercase tracking-[.1em] text-white/30">
-            Documents Generated
-          </div>
-          <div className="flex flex-col gap-3">
-            {DOC_ITEMS.map((doc) => (
-              <div
-                key={doc.name}
-                className="flex items-center gap-[14px] rounded-[10px] border border-white/10 bg-white/[.06] px-[18px] py-[14px]"
-              >
-                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-base ${doc.iconBg}`}>
-                  {doc.icon}
-                </div>
-                <div className="flex-1">
-                  <div className="text-[.85rem] font-medium text-white">{doc.name}</div>
-                  <div className="mt-[2px] text-[.75rem] text-white/40">{doc.sub}</div>
-                </div>
-                <span
-                  className={`rounded-full px-[9px] py-[3px] text-[.72rem] font-semibold ${
-                    doc.status === "Ready"
-                      ? "bg-[#10B981]/20 text-[#34D399]"
-                      : "bg-[#F2C94C]/20 text-[#F2C94C]"
-                  }`}
-                >
-                  {doc.status}
-                </span>
+        <div className="relative mx-auto w-full max-w-[420px] pt-6">
+          <div
+            className="relative rounded-sm border border-ink/15 bg-paper-white p-8 shadow-[0_20px_60px_rgba(20,33,61,.14)]"
+            style={{ transform: "rotate(1.4deg)" }}
+          >
+            <FilingSeal />
+            <div className="mb-5 border-b border-rule pb-4">
+              <div className="font-mono text-[.68rem] uppercase tracking-[.14em] text-ink-faint">
+                State of Delaware · Division of Corporations
               </div>
-            ))}
+              <h2 className="mt-2 font-serif text-[1.35rem] leading-tight text-ink">
+                Articles of Incorporation
+              </h2>
+            </div>
+            <div className="flex flex-col gap-4">
+              {DOC_FIELDS.map((field) => (
+                <div key={field.label}>
+                  <div className="font-mono text-[.65rem] uppercase tracking-[.1em] text-ink-faint">
+                    {field.label}
+                  </div>
+                  <div className="mt-[3px] border-b border-dotted border-rule pb-[6px] text-[.9rem] text-ink">
+                    {field.value}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
+          <p className="mt-5 text-center font-mono text-[.7rem] uppercase tracking-[.08em] text-ink-faint">
+            Real documents. Not just a form.
+          </p>
         </div>
       </div>
     </section>

@@ -5,19 +5,18 @@ export default function CtaBand() {
     <div
       className="relative overflow-hidden px-6 py-20 text-center md:px-12"
       style={{
-        background:
-          "linear-gradient(135deg, #0D1F3C 0%, #162645 60%, #0f2a45 100%)",
+        background: "linear-gradient(135deg, #14213D 0%, #1B2E52 60%, #182948 100%)",
       }}
     >
       <div
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            "radial-gradient(ellipse 80% 100% at 50% 100%, rgba(0,137,123,.15) 0%, transparent 70%)",
+            "radial-gradient(ellipse 80% 100% at 50% 100%, rgba(168,53,29,.18) 0%, transparent 70%)",
         }}
       />
       <div className="relative z-10 mx-auto max-w-[640px]">
-        <h2 className="mb-[14px] font-serif text-[clamp(2rem,4vw,2.8rem)] leading-[1.2] tracking-[-.02em] text-white">
+        <h2 className="mb-[14px] font-serif text-[clamp(2rem,4vw,2.8rem)] leading-[1.2] tracking-[-.02em] text-paper-white">
           A world where paperwork
           <br />
           never stops a great idea.
@@ -30,13 +29,13 @@ export default function CtaBand() {
         <div className="flex flex-wrap justify-center gap-[14px]">
           <Link
             href="/onboard"
-            className="inline-flex items-center gap-2 rounded-brand bg-gold px-9 py-[15px] font-sans text-base font-bold text-navy shadow-gold transition-all hover:-translate-y-0.5 hover:bg-[#FFB300]"
+            className="inline-flex items-center gap-2 rounded bg-stamp px-9 py-[15px] font-sans text-base font-bold text-paper-white transition-all hover:-translate-y-0.5 hover:bg-stamp-dark"
           >
             Start Your Formation →
           </Link>
           <Link
             href="/#pricing-anchor"
-            className="inline-flex items-center gap-2 rounded-brand border-2 border-white/20 px-[34px] py-[13px] font-sans text-base font-semibold text-white/70 transition-all hover:bg-teal-pale hover:text-navy"
+            className="inline-flex items-center gap-2 rounded border-2 border-white/20 px-[34px] py-[13px] font-sans text-base font-semibold text-white/70 transition-all hover:bg-paper-white hover:text-ink"
           >
             View Pricing
           </Link>

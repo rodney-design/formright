@@ -79,15 +79,15 @@ const ENTITIES: EntityCard[] = [
 
 export default function EntityGrid() {
   return (
-    <div id="entities-anchor" className="scroll-mt-[68px] bg-slate-50 px-6 py-20 md:px-12">
+    <div id="entities-anchor" className="scroll-mt-[68px] bg-paper px-6 py-20 md:px-12">
       <div className="mx-auto max-w-[1100px]">
-        <div className="mb-[14px] text-[.75rem] font-bold uppercase tracking-[.12em] text-teal">
+        <div className="mb-[14px] text-[.75rem] font-bold uppercase tracking-[.12em] text-stamp">
           What We Support
         </div>
-        <h2 className="mb-4 max-w-[700px] font-serif text-[clamp(2rem,4vw,3rem)] leading-[1.15] tracking-[-.02em] text-navy">
+        <h2 className="mb-4 max-w-[700px] font-serif text-[clamp(2rem,4vw,3rem)] leading-[1.15] tracking-[-.02em] text-ink">
           Every U.S. Business Entity Type
         </h2>
-        <p className="max-w-[560px] text-base font-light leading-[1.75] text-slate-500">
+        <p className="max-w-[560px] text-base font-light leading-[1.75] text-ink-faint">
           FormRight v2.0 covers the full spectrum — 7 entity types, all 50
           states. Our nonprofit heritage is a differentiator, not a
           constraint.
@@ -98,24 +98,24 @@ export default function EntityGrid() {
             <Link
               key={entity.label}
               href="/onboard"
-              className="group flex flex-col rounded-2xl border-2 border-slate-200 bg-white p-6 transition-all hover:-translate-y-1 hover:shadow-card-lg"
-              style={{ borderTopWidth: 4, borderTopColor: entity.accent }}
+              className="group flex flex-col rounded-sm border border-rule bg-paper-white p-6 transition-all hover:-translate-y-1 hover:shadow-card-lg"
+              style={{ borderTopWidth: 3, borderTopColor: entity.accent }}
             >
               <div className="mb-3 text-[26px]">{entity.icon}</div>
               <div
-                className="mb-[10px] inline-block w-fit rounded px-2 py-[2px] text-[.68rem] font-bold uppercase tracking-[.1em]"
+                className="mb-[10px] inline-block w-fit rounded px-2 py-[2px] font-mono text-[.65rem] font-bold uppercase tracking-[.1em]"
                 style={{ color: entity.accent, backgroundColor: `${entity.accent}14` }}
               >
                 {entity.label}
               </div>
-              <h3 className="mb-[6px] text-[.975rem] font-bold text-navy">
+              <h3 className="mb-[6px] text-[.975rem] font-bold text-ink">
                 {entity.title}
               </h3>
-              <p className="mb-[10px] text-[.8rem] font-light leading-[1.7] text-slate-500">
+              <p className="mb-[10px] text-[.8rem] font-light leading-[1.7] text-ink-faint">
                 {entity.description}
               </p>
-              <div className="mt-auto text-[.72rem] text-slate-400">
-                Key forms: <strong className="text-slate-600">{entity.forms}</strong>
+              <div className="mt-auto text-[.72rem] text-ink-faint">
+                Key forms: <strong className="text-ink">{entity.forms}</strong>
               </div>
               {entity.note && (
                 <div

@@ -39,12 +39,12 @@ const FEATURES = [
 
 export default function Features() {
   return (
-    <section className="bg-navy px-6 py-24 md:px-12">
+    <section className="bg-ink px-6 py-24 md:px-12">
       <div className="mx-auto max-w-[1100px]">
-        <div className="mb-[14px] text-[.75rem] font-bold uppercase tracking-[.12em] text-teal-light">
+        <div className="mb-[14px] text-[.75rem] font-bold uppercase tracking-[.12em] text-brass-light">
           Why FormRight
         </div>
-        <h2 className="max-w-[700px] font-serif text-[clamp(2rem,4vw,3rem)] leading-[1.15] tracking-[-.02em] text-white">
+        <h2 className="max-w-[700px] font-serif text-[clamp(2rem,4vw,3rem)] leading-[1.15] tracking-[-.02em] text-paper-white">
           Built for every founder with a purpose.
         </h2>
 
@@ -52,7 +52,7 @@ export default function Features() {
           {FEATURES.map((feature) => (
             <div
               key={feature.title}
-              className="rounded-brand-lg border border-white/[.08] bg-white/[.04] p-7 transition-colors hover:border-teal/30 hover:bg-white/[.07]"
+              className="rounded-sm border border-white/[.08] bg-white/[.04] p-7 transition-colors hover:border-brass/30 hover:bg-white/[.07]"
             >
               <div className="mb-4 text-[28px]">{feature.icon}</div>
               <h3 className="mb-2 text-[.95rem] font-semibold text-white">

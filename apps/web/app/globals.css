@@ -21,6 +21,51 @@ html {
   .text-balance {
     text-wrap: balance;
   }
+
+  /* Ledger texture — faint ruled lines evoking legal-pad/document paper.
+     Used only on the marketing hero, not the logged-in app. */
+  .bg-ledger {
+    background-image: repeating-linear-gradient(
+      0deg,
+      rgba(20, 33, 61, 0.05) 0px,
+      rgba(20, 33, 61, 0.05) 1px,
+      transparent 1px,
+      transparent 34px
+    );
+  }
+}
+
+/* Filing-stamp entrance: the hero's signature moment. A seal drops in,
+   overshoots slightly like a real stamp striking paper, and settles at
+   a small resting tilt. Respects reduced-motion. */
+@keyframes stamp-strike {
+  0% {
+    opacity: 0;
+    transform: translateY(-40px) scale(2.6) rotate(-18deg);
+  }
+  55% {
+    opacity: 1;
+    transform: translateY(0) scale(0.92) rotate(-9deg);
+  }
+  75% {
+    transform: translateY(0) scale(1.04) rotate(-7deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(-8deg);
+  }
+}
+
+.animate-stamp {
+  animation: stamp-strike 0.7s cubic-bezier(0.2, 0.9, 0.3, 1.1) 0.5s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-stamp {
+    animation: none;
+    transform: rotate(-8deg);
+    opacity: 1;
+  }
 }
 
 @layer components {
