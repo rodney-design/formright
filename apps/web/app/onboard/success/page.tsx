@@ -1,4 +1,6 @@
 import Link from "next/link";
+import ComplyUpsellCard from "@/components/onboarding/ComplyUpsellCard";
+import FormationCompletedTracker from "@/components/onboarding/FormationCompletedTracker";
 
 export default function OnboardSuccessPage({
   searchParams,
@@ -7,6 +9,7 @@ export default function OnboardSuccessPage({
 }) {
   return (
     <div className="max-w-xl mx-auto text-center py-20 px-6">
+      <FormationCompletedTracker registrationId={searchParams.registration} />
       <div className="w-20 h-20 rounded-full bg-teal-pale flex items-center justify-center text-4xl mx-auto mb-6">
         🎉
       </div>
@@ -21,6 +24,9 @@ export default function OnboardSuccessPage({
           </>
         )}
       </p>
+      {searchParams.registration && (
+        <ComplyUpsellCard registrationId={searchParams.registration} />
+      )}
       <div className="bg-white border border-gray-200 rounded-2xl p-6 text-left mb-8">
         <h4 className="font-semibold text-navy mb-4">What Happens Next</h4>
         <ol className="flex flex-col gap-3 text-sm text-gray-600">

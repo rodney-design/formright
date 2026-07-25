@@ -13,4 +13,6 @@ export interface StateFiling {
   stamped_doc_s3_key: string | null;
   submitted_at: string | null;
   updated_at: string;
+  provider: string;
+  provider_filing_id: string | null;
 }

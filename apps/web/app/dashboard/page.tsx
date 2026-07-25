@@ -1,14 +1,22 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { getRegistrationsForUser } from "@/lib/queries/registrations";
+import { getSubscriptionsForUser } from "@/lib/queries/subscriptions";
 import { getDocsForEntity } from "@/lib/entities/entityDocsMap";
 import { entityFamily } from "@/lib/entities/entityFamily";
 import StatusBadge from "@/components/dashboard/StatusBadge";
+import ComplyNudgeBanner from "@/components/dashboard/ComplyNudgeBanner";
+
+const ACTIVE_STATUSES = new Set(["active", "trialing"]);
 
 export default async function DashboardHome() {
   const user = await getCurrentUser();
-  const registrations = await getRegistrationsForUser(user!.id);
+  const [registrations, subscriptions] = await Promise.all([
+    getRegistrationsForUser(user!.id),
+    getSubscriptionsForUser(user!.id),
+  ]);
   const active = registrations[0];
+  const complyActive = subscriptions.some((s) => s.plan === "comply" && ACTIVE_STATUSES.has(s.status));
 
   return (
     <div>
@@ -18,6 +26,8 @@ export default async function DashboardHome() {
         </h1>
         <p className="text-gray-500 text-sm mt-1">Here&apos;s where your formation stands.</p>
       </div>
+
+      {active && !complyActive && <ComplyNudgeBanner />}
 
       {!active ? (
         <div className="bg-white border border-gray-200 rounded-2xl p-10 text-center">

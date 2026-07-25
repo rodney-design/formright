@@ -7,7 +7,7 @@ import { entityFamily } from "@/lib/entities/entityFamily";
 import { getStateFeeForEntity } from "@/lib/entities/stateFeesTable";
 import { ADDONS, getPlansForEntity } from "@/lib/entities/pricing";
 import { generateRegistrationId } from "@/lib/registrationId";
-import { seedComplianceEvents } from "@/lib/entities/complianceEvents";
+import { seedComplianceEventsForRegistration } from "@/lib/entities/complianceRulesTable";
 
 export const runtime = "nodejs";
 
@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
     ]
   );
 
-  const complianceEvents = seedComplianceEvents(family, new Date());
+  const complianceEvents = await seedComplianceEventsForRegistration(family, data.state, new Date(), data.fiscal);
   for (const event of complianceEvents) {
     await query(
       `INSERT INTO compliance_events (registration_id, event_type, due_date)

@@ -22,6 +22,12 @@ vi.mock("@sentry/nextjs", () => ({ captureException: captureExceptionMock }));
 vi.mock("@/lib/entities/stateFeesTable", () => ({
   getStateFeeForEntity: vi.fn().mockResolvedValue({ feeCents: 9000, notes: null }),
 }));
+// Same "server-only" issue as stateFeesTable.ts above — mock rather than
+// exercise the DB-backed compliance_rules lookup, which isn't what these
+// rollback tests are about.
+vi.mock("@/lib/entities/complianceRulesTable", () => ({
+  seedComplianceEventsForRegistration: vi.fn().mockResolvedValue([]),
+}));
 
 async function makeRequest(body: unknown) {
   const { NextRequest } = await import("next/server");

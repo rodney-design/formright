@@ -5,6 +5,7 @@ import { getStripe } from "@/lib/stripe";
 import { query } from "@/lib/db";
 import { sendRegistrationConfirmationEmail } from "@/lib/email";
 import { ensureStateFiling } from "@/lib/queries/stateFilings";
+import { submitStateFilingToProvider } from "@/lib/state-filing/submit";
 import { ensureRegisteredAgentOrder } from "@/lib/queries/registeredAgent";
 import { upsertFirmSubscription } from "@/lib/queries/firmSubscriptions";
 
@@ -42,10 +43,14 @@ export async function POST(req: NextRequest) {
           state_fee_cents: number | null;
           orgname: string;
           contact_email: string;
+          contact_name: string | null;
           state: string;
+          entity_type: string;
+          address: { address?: string; city?: string; zip?: string } | null;
           notes: string | null;
         }>(
-          "SELECT amount_cents, state_fee_cents, orgname, contact_email, state, notes FROM registrations WHERE id = $1",
+          `SELECT amount_cents, state_fee_cents, orgname, contact_email, contact_name, state, entity_type, address, notes
+           FROM registrations WHERE id = $1`,
           [registrationId]
         );
         const registration = regResult.rows[0];
@@ -65,7 +70,30 @@ export async function POST(req: NextRequest) {
           // since a payment row now exists. Each step is isolated so one
           // failure doesn't take the others down with it.
           try {
-            await ensureStateFiling(registrationId, registration.state);
+            const filing = await ensureStateFiling(registrationId, registration.state);
+            // Isolated from the ensureStateFiling insert above: if a vendor
+            // submission fails, the row still exists at 'not_submitted' for
+            // the manual worksheet flow to pick up, rather than losing the
+            // filing record entirely.
+            try {
+              await submitStateFilingToProvider(filing, {
+                id: registrationId,
+                orgname: registration.orgname,
+                entity_type: registration.entity_type,
+                state: registration.state,
+                address: registration.address,
+                ein: null,
+                mission: null,
+                fiscal_year: null,
+                contact_name: registration.contact_name,
+                contact_email: registration.contact_email,
+                board: null,
+                notes: registration.notes,
+              });
+            } catch (err) {
+              console.error(`Failed to submit state filing to provider for ${registrationId}:`, err);
+              Sentry.captureException(err);
+            }
           } catch (err) {
             console.error(`Failed to create state filing for ${registrationId}:`, err);
             Sentry.captureException(err);

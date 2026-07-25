@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireApiKeyFirm, ApiAuthError } from "@/lib/apiAuth";
+import { requireApiKeyFirm, ApiAuthError, RateLimitError } from "@/lib/apiAuth";
 import { getRegistrationById } from "@/lib/queries/registrations";
 import { getStateFilingForRegistration } from "@/lib/queries/stateFilings";
 
@@ -15,6 +15,12 @@ export async function GET(req: NextRequest) {
     firmId = await requireApiKeyFirm(req);
   } catch (err) {
     if (err instanceof ApiAuthError) return NextResponse.json({ error: err.message }, { status: 401 });
+    if (err instanceof RateLimitError) {
+      return NextResponse.json(
+        { error: "Rate limit exceeded" },
+        { status: 429, headers: { "Retry-After": String(err.retryAfterSeconds) } }
+      );
+    }
     throw err;
   }
 

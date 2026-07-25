@@ -104,8 +104,12 @@ CREATE TABLE state_filings (
   state_confirmation_id TEXT,
   stamped_doc_s3_key TEXT,
   submitted_at TIMESTAMPTZ,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  provider TEXT NOT NULL DEFAULT 'manual',  -- 'manual' (staff worksheet) or a vendor name, e.g. 'fileforms'
+  provider_filing_id TEXT                   -- vendor's filing ID, when provider != 'manual'
 );
+
+CREATE INDEX idx_state_filings_provider ON state_filings(provider, provider_filing_id) WHERE provider != 'manual';
 
 CREATE TABLE state_fees (
   state TEXT NOT NULL,
@@ -192,3 +196,50 @@ CREATE TABLE registered_agent_orders (
 
 CREATE INDEX idx_registered_agent_orders_registration ON registered_agent_orders(registration_id);
 CREATE INDEX idx_registered_agent_orders_status ON registered_agent_orders(status) WHERE status NOT IN ('active', 'canceled');
+
+-- Compliance rules engine ────────────────────────────────────────────────
+-- Data-driven per-state annual-report due dates, replacing the
+-- formation-anniversary approximation in seedComplianceEvents() for states
+-- with a verified rule. entity_family = 'all' is a wildcard matched when no
+-- entity-family-specific row exists for that state (see
+-- lib/entities/complianceRulesTable.ts). Only CA/DE/FL/NY/TX are seeded —
+-- see db/migrations/007_compliance_rules.sql for sourcing/citations. Every
+-- other state falls back to the existing anniversary approximation rather
+-- than a guessed rule row, same posture as state_fees.
+
+CREATE TABLE compliance_rules (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  state TEXT NOT NULL,
+  entity_family TEXT NOT NULL,  -- llc/ccorp/scorp/nonprofit/benefit/pc, or 'all'
+  event_type TEXT NOT NULL DEFAULT 'annual_report',
+  -- not_required = true means this (state, entity_family) has no annual
+  -- report/renewal obligation at all (e.g. a plain South Carolina LLC not
+  -- taxed as a corporation) — the app skips generating the event entirely
+  -- rather than falling back to a guessed date. rule_type/cadence are NULL
+  -- in that case; the CHECK enforces one or the other, not both missing.
+  not_required BOOLEAN NOT NULL DEFAULT false,
+  rule_type TEXT CHECK (rule_type IN (
+    'fixed_date',                 -- same calendar date every year/biennium (fixed_month/fixed_day)
+    'anniversary_month_last_day', -- last day of the formation month (CA, NY, NJ, VA, CT-corp style)
+    'anniversary_month_first_day',-- 1st day of the formation month (Illinois)
+    'anniversary_quarter_end',    -- last day of the calendar quarter containing the formation month (Wisconsin)
+    'anniversary_month_offset_end', -- last day of the Nth month after the formation month (offset_months) (Colorado)
+    'anniversary_exact_date',     -- the literal formation date each year (Massachusetts LLC style)
+    'fiscal_year_offset'          -- N months after fiscal year end, day D or last-day-of-month (offset_months/offset_day)
+  )),
+  cadence TEXT CHECK (cadence IN ('annual', 'biennial')),
+  fixed_month INTEGER CHECK (fixed_month BETWEEN 1 AND 12),  -- only for rule_type = 'fixed_date'
+  fixed_day INTEGER CHECK (fixed_day BETWEEN 1 AND 31),      -- only for rule_type = 'fixed_date'
+  offset_months INTEGER,     -- only for rule_type = 'fiscal_year_offset'
+  offset_day INTEGER CHECK (offset_day BETWEEN 1 AND 31),  -- fiscal_year_offset only; NULL = last day of the target month
+  -- Only meaningful with rule_type = 'fixed_date': some states run a fixed
+  -- biennial filing calendar anchored to odd/even calendar years rather than
+  -- "2 years after formation" (Iowa: always April 1 of an odd year). When
+  -- set, the computed candidate rolls forward a year until it matches.
+  year_parity TEXT CHECK (year_parity IN ('odd', 'even')),
+  notes TEXT,
+  source TEXT,               -- citation for the verified figure
+  verified_at DATE NOT NULL,
+  UNIQUE (state, entity_family, event_type),
+  CHECK (not_required OR (rule_type IS NOT NULL AND cadence IS NOT NULL))
+);

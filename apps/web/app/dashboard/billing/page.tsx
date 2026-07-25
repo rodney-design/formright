@@ -2,6 +2,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getPaymentsForUser, getRegistrationsForUser } from "@/lib/queries/registrations";
 import { getSubscriptionsForUser } from "@/lib/queries/subscriptions";
 import ComplySubscribeButton from "@/components/dashboard/ComplySubscribeButton";
+import ComplySubscribedTracker from "@/components/dashboard/ComplySubscribedTracker";
 
 function formatCents(cents: number) {
   return (cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" });
@@ -9,7 +10,11 @@ function formatCents(cents: number) {
 
 const ACTIVE_STATUSES = new Set(["active", "trialing"]);
 
-export default async function BillingPage() {
+export default async function BillingPage({
+  searchParams,
+}: {
+  searchParams: { comply?: string };
+}) {
   const user = await getCurrentUser();
   const [payments, registrations, subscriptions] = await Promise.all([
     getPaymentsForUser(user!.id),
@@ -22,6 +27,7 @@ export default async function BillingPage() {
 
   return (
     <div>
+      {searchParams.comply === "success" && <ComplySubscribedTracker />}
       <div className="mb-8">
         <h1 className="text-2xl font-serif font-bold text-navy">💳 Billing</h1>
         <p className="text-gray-500 text-sm mt-1">Your payment history and active plans.</p>

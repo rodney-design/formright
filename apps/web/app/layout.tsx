@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Fraunces, Outfit } from "next/font/google";
+import PostHogInit from "@/components/analytics/PostHogInit";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -33,6 +34,7 @@ export default function RootLayout({
       <body
         className={`${fraunces.variable} ${outfit.variable} font-sans antialiased`}
       >
+        <PostHogInit />
         {children}
       </body>
     </html>
