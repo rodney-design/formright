@@ -14,7 +14,7 @@ export const ENTITY_DOCS_MAP: Record<EntityFamily, EntityDoc[]> = {
     { key: "op_agreement", icon: "\u{1F4CB}", title: "Operating Agreement", desc: "Single or multi-member governance" },
     { key: "ein", icon: "\u{1F522}", title: "EIN Application Guide (SS-4)", desc: "IRS employer ID instructions" },
     { key: "minutes_corp", icon: "\u{1F4DD}", title: "Initial Member Meeting Minutes", desc: "Organizational meeting documentation" },
-    { key: "resolutions", icon: "\u{1F3DB}️", title: "Member Resolution Templates", desc: "Standard LLC resolutions" },
+    { key: "resolutions_corp", icon: "\u{1F3DB}️", title: "Member Resolution Templates", desc: "Standard LLC resolutions" },
   ],
   ccorp: [
     { key: "articles_corp", icon: "\u{1F4C4}", title: "Articles of Incorporation", desc: "State formation document" },
@@ -24,7 +24,7 @@ export const ENTITY_DOCS_MAP: Record<EntityFamily, EntityDoc[]> = {
     { key: "form_83b", icon: "\u{1F4EE}", title: "83(b) Election Guide", desc: "IRS election filing instructions" },
     { key: "ein", icon: "\u{1F522}", title: "EIN Application Guide (SS-4)", desc: "IRS employer ID instructions" },
     { key: "minutes_corp", icon: "\u{1F4DD}", title: "Initial Board Meeting Minutes", desc: "Organizational meeting documentation" },
-    { key: "resolutions", icon: "\u{1F3DB}️", title: "Board Resolution Templates", desc: "Standard corporate resolutions" },
+    { key: "resolutions_corp", icon: "\u{1F3DB}️", title: "Board Resolution Templates", desc: "Standard corporate resolutions" },
   ],
   scorp: [
     { key: "articles_corp", icon: "\u{1F4C4}", title: "Articles of Incorporation", desc: "State formation document" },
@@ -33,7 +33,7 @@ export const ENTITY_DOCS_MAP: Record<EntityFamily, EntityDoc[]> = {
     { key: "stock_ledger", icon: "\u{1F4CA}", title: "Stock Ledger", desc: "Shareholder equity tracking" },
     { key: "ein", icon: "\u{1F522}", title: "EIN Application Guide (SS-4)", desc: "IRS employer ID instructions" },
     { key: "minutes_corp", icon: "\u{1F4DD}", title: "Initial Board Meeting Minutes", desc: "Organizational meeting documentation" },
-    { key: "resolutions", icon: "\u{1F3DB}️", title: "Board Resolution Templates", desc: "Standard corporate resolutions" },
+    { key: "resolutions_corp", icon: "\u{1F3DB}️", title: "Board Resolution Templates", desc: "Standard corporate resolutions" },
   ],
   nonprofit: [
     { key: "articles", icon: "\u{1F4C4}", title: "Articles of Incorporation", desc: "Nonprofit formation document" },
@@ -53,7 +53,7 @@ export const ENTITY_DOCS_MAP: Record<EntityFamily, EntityDoc[]> = {
     { key: "benefit_report", icon: "\u{1F30D}", title: "Annual Benefit Report Template", desc: "Stakeholder impact reporting" },
     { key: "ein", icon: "\u{1F522}", title: "EIN Application Guide (SS-4)", desc: "IRS employer ID instructions" },
     { key: "minutes_corp", icon: "\u{1F4DD}", title: "Initial Board Meeting Minutes", desc: "Organizational meeting documentation" },
-    { key: "resolutions", icon: "\u{1F3DB}️", title: "Board Resolution Templates", desc: "Standard corporate resolutions" },
+    { key: "resolutions_corp", icon: "\u{1F3DB}️", title: "Board Resolution Templates", desc: "Standard corporate resolutions" },
   ],
   pc: [
     { key: "articles_pc", icon: "\u{1F4C4}", title: "Articles of Incorporation (PC)", desc: "Professional corp formation document" },
@@ -61,7 +61,7 @@ export const ENTITY_DOCS_MAP: Record<EntityFamily, EntityDoc[]> = {
     { key: "stock_transfer", icon: "\u{1F4D1}", title: "Stock Transfer Restriction Agreement", desc: "Limits shares to licensed professionals" },
     { key: "ein", icon: "\u{1F522}", title: "EIN Application Guide (SS-4)", desc: "IRS employer ID instructions" },
     { key: "minutes_corp", icon: "\u{1F4DD}", title: "Initial Board Meeting Minutes", desc: "Organizational meeting documentation" },
-    { key: "resolutions", icon: "\u{1F3DB}️", title: "Board Resolution Templates", desc: "Standard corporate resolutions" },
+    { key: "resolutions_corp", icon: "\u{1F3DB}️", title: "Board Resolution Templates", desc: "Standard corporate resolutions" },
   ],
   sole: [
     { key: "dba_guide", icon: "\u{1F4C4}", title: "DBA Registration Guide", desc: "Fictitious business name filing" },
