@@ -11,8 +11,15 @@ import { query } from "@/lib/db";
 import type { EntityFamily } from "./entityFamily";
 import { seedComplianceEvents, type ComplianceEventSeed } from "./complianceEvents";
 
-type RuleType = "fixed_date" | "anniversary_month_last_day" | "anniversary_exact_date" | "fiscal_year_offset";
+type RuleType =
+  | "fixed_date"
+  | "anniversary_month_last_day"
+  | "anniversary_exact_date"
+  | "fiscal_year_offset"
+  | "anniversary_month_first_day" // due on the 1st of the formation month, not the last day (Illinois)
+  | "anniversary_quarter_end";    // due at the end of the calendar quarter containing the formation month (Wisconsin)
 type Cadence = "annual" | "biennial";
+type YearParity = "odd" | "even";
 
 export interface ComplianceRule {
   notRequired: boolean;
@@ -22,6 +29,12 @@ export interface ComplianceRule {
   fixedDay: number | null;
   offsetMonths: number | null;
   offsetDay: number | null; // null under fiscal_year_offset means "last day of the target month"
+  // Only meaningful with rule_type = 'fixed_date': some states run a fixed
+  // biennial filing calendar anchored to odd/even calendar years rather than
+  // "2 years after formation" (Iowa: always April 1 of an odd year,
+  // regardless of formation year parity). When set, the computed candidate
+  // rolls forward a year until its year matches this parity.
+  yearParity: YearParity | null;
 }
 
 // Exact entity_family match wins; 'all' is the wildcard fallback within the
@@ -40,9 +53,10 @@ export async function getComplianceRule(
     fixed_day: number | null;
     offset_months: number | null;
     offset_day: number | null;
+    year_parity: YearParity | null;
     entity_family: string;
   }>(
-    `SELECT not_required, rule_type, cadence, fixed_month, fixed_day, offset_months, offset_day, entity_family
+    `SELECT not_required, rule_type, cadence, fixed_month, fixed_day, offset_months, offset_day, year_parity, entity_family
      FROM compliance_rules
      WHERE state = $1 AND entity_family IN ($2, 'all') AND event_type = 'annual_report'
      ORDER BY (entity_family = $2) DESC
@@ -59,6 +73,7 @@ export async function getComplianceRule(
     fixedDay: row.fixed_day,
     offsetMonths: row.offset_months,
     offsetDay: row.offset_day,
+    yearParity: row.year_parity,
   };
 }
 
@@ -123,6 +138,11 @@ export function calculateAnnualReportDueDate(
     if (candidate <= formedAt) {
       candidate = new Date(formedAt.getFullYear() + cadenceYears, rule.fixedMonth - 1, rule.fixedDay);
     }
+    if (rule.yearParity) {
+      while (isYearParityMismatch(candidate.getFullYear(), rule.yearParity)) {
+        candidate = new Date(candidate.getFullYear() + 1, rule.fixedMonth - 1, rule.fixedDay);
+      }
+    }
     return candidate;
   }
 
@@ -132,6 +152,25 @@ export function calculateAnnualReportDueDate(
     // of month m" trick (day 0 of the following month).
     const yearsOut = rule.cadence === "biennial" ? 2 : 1;
     return new Date(formedAt.getFullYear() + yearsOut, formedAt.getMonth() + 1, 0);
+  }
+
+  if (rule.ruleType === "anniversary_month_first_day") {
+    // Due on the 1st of the formation month, 1 year out (Illinois: filed
+    // "before the first day of the anniversary month," so the deadline IS
+    // that first day) — contrast with anniversary_month_last_day above.
+    const yearsOut = rule.cadence === "biennial" ? 2 : 1;
+    return new Date(formedAt.getFullYear() + yearsOut, formedAt.getMonth(), 1);
+  }
+
+  if (rule.ruleType === "anniversary_quarter_end") {
+    // Due on the last day of the calendar quarter containing the formation
+    // month, 1 year out (Wisconsin). Quarter-end month index: Q1->Feb(1)
+    // isn't right — quarters are Jan-Mar/Apr-Jun/Jul-Sep/Oct-Dec, so the
+    // last month of the formation month's quarter is
+    // floor(month/3)*3 + 2 (0-indexed: Mar=2, Jun=5, Sep=8, Dec=11).
+    const yearsOut = rule.cadence === "biennial" ? 2 : 1;
+    const quarterEndMonth = Math.floor(formedAt.getMonth() / 3) * 3 + 2;
+    return new Date(formedAt.getFullYear() + yearsOut, quarterEndMonth + 1, 0);
   }
 
   if (rule.ruleType === "anniversary_exact_date") {
@@ -150,6 +189,11 @@ export function calculateAnnualReportDueDate(
   }
 
   throw new Error(`Unhandled compliance rule type: ${rule.ruleType}`);
+}
+
+function isYearParityMismatch(year: number, parity: YearParity): boolean {
+  const isOdd = year % 2 !== 0;
+  return parity === "odd" ? !isOdd : isOdd;
 }
 
 // IRS Form 990-N (e-Postcard): due the 15th day of the 5th month after the

@@ -221,6 +221,8 @@ CREATE TABLE compliance_rules (
   rule_type TEXT CHECK (rule_type IN (
     'fixed_date',                 -- same calendar date every year/biennium (fixed_month/fixed_day)
     'anniversary_month_last_day', -- last day of the formation month (CA, NY, NJ, VA, CT-corp style)
+    'anniversary_month_first_day',-- 1st day of the formation month (Illinois)
+    'anniversary_quarter_end',    -- last day of the calendar quarter containing the formation month (Wisconsin)
     'anniversary_exact_date',     -- the literal formation date each year (Massachusetts LLC style)
     'fiscal_year_offset'          -- N months after fiscal year end, day D or last-day-of-month (offset_months/offset_day)
   )),
@@ -229,6 +231,11 @@ CREATE TABLE compliance_rules (
   fixed_day INTEGER CHECK (fixed_day BETWEEN 1 AND 31),      -- only for rule_type = 'fixed_date'
   offset_months INTEGER,     -- only for rule_type = 'fiscal_year_offset'
   offset_day INTEGER CHECK (offset_day BETWEEN 1 AND 31),  -- fiscal_year_offset only; NULL = last day of the target month
+  -- Only meaningful with rule_type = 'fixed_date': some states run a fixed
+  -- biennial filing calendar anchored to odd/even calendar years rather than
+  -- "2 years after formation" (Iowa: always April 1 of an odd year). When
+  -- set, the computed candidate rolls forward a year until it matches.
+  year_parity TEXT CHECK (year_parity IN ('odd', 'even')),
   notes TEXT,
   source TEXT,               -- citation for the verified figure
   verified_at DATE NOT NULL,

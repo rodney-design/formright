@@ -21,7 +21,7 @@ describe("calculateAnnualReportDueDate", () => {
     // so the first due date should be March 1, 2027, not 2026.
     const formedAt = new Date(2026, 6, 15); // July 15, 2026
     const due = calculateAnnualReportDueDate(
-      { notRequired: false, ruleType: "fixed_date", cadence: "annual", fixedMonth: 3, fixedDay: 1, offsetMonths: null, offsetDay: null },
+      { notRequired: false, ruleType: "fixed_date", cadence: "annual", fixedMonth: 3, fixedDay: 1, offsetMonths: null, offsetDay: null, yearParity: null },
       formedAt
     );
     expect(due).toEqual(new Date(2027, 2, 1));
@@ -31,17 +31,40 @@ describe("calculateAnnualReportDueDate", () => {
     // Formed January 2026 — Delaware LLC's June 1 tax deadline is still ahead.
     const formedAt = new Date(2026, 0, 10);
     const due = calculateAnnualReportDueDate(
-      { notRequired: false, ruleType: "fixed_date", cadence: "annual", fixedMonth: 6, fixedDay: 1, offsetMonths: null, offsetDay: null },
+      { notRequired: false, ruleType: "fixed_date", cadence: "annual", fixedMonth: 6, fixedDay: 1, offsetMonths: null, offsetDay: null, yearParity: null },
       formedAt
     );
     expect(due).toEqual(new Date(2026, 5, 1));
+  });
+
+  it("fixed_date + year_parity: rolls forward an extra cycle when the naive candidate lands on an even year (Iowa)", () => {
+    // Formed June 10, 2026 (even year), Apr 1 already passed this year, so
+    // the naive biennial candidate is Apr 1, 2028 — an even year, which
+    // mismatches the odd-year anchor and must roll forward to 2029.
+    const formedAt = new Date(2026, 5, 10); // June 10, 2026
+    const due = calculateAnnualReportDueDate(
+      { notRequired: false, ruleType: "fixed_date", cadence: "biennial", fixedMonth: 4, fixedDay: 1, offsetMonths: null, offsetDay: null, yearParity: "odd" },
+      formedAt
+    );
+    expect(due).toEqual(new Date(2029, 3, 1));
+  });
+
+  it("fixed_date + year_parity: no roll-forward needed when the naive candidate already lands on an odd year", () => {
+    // Formed January 10, 2027 (odd year) — Apr 1, 2027 hasn't passed yet, so
+    // the naive candidate is Apr 1, 2027 itself, already an odd year.
+    const formedAt = new Date(2027, 0, 10);
+    const due = calculateAnnualReportDueDate(
+      { notRequired: false, ruleType: "fixed_date", cadence: "biennial", fixedMonth: 4, fixedDay: 1, offsetMonths: null, offsetDay: null, yearParity: "odd" },
+      formedAt
+    );
+    expect(due).toEqual(new Date(2027, 3, 1));
   });
 
   it("anniversary_month_last_day + annual: last day of formation month, 1 year out", () => {
     // Formed June 10, 2026 (California corporation) — due June 30, 2027.
     const formedAt = new Date(2026, 5, 10);
     const due = calculateAnnualReportDueDate(
-      { notRequired: false, ruleType: "anniversary_month_last_day", cadence: "annual", fixedMonth: null, fixedDay: null, offsetMonths: null, offsetDay: null },
+      { notRequired: false, ruleType: "anniversary_month_last_day", cadence: "annual", fixedMonth: null, fixedDay: null, offsetMonths: null, offsetDay: null, yearParity: null },
       formedAt
     );
     expect(due).toEqual(new Date(2027, 5, 30));
@@ -51,10 +74,41 @@ describe("calculateAnnualReportDueDate", () => {
     // Formed June 10, 2026 (California LLC) — due June 30, 2028.
     const formedAt = new Date(2026, 5, 10);
     const due = calculateAnnualReportDueDate(
-      { notRequired: false, ruleType: "anniversary_month_last_day", cadence: "biennial", fixedMonth: null, fixedDay: null, offsetMonths: null, offsetDay: null },
+      { notRequired: false, ruleType: "anniversary_month_last_day", cadence: "biennial", fixedMonth: null, fixedDay: null, offsetMonths: null, offsetDay: null, yearParity: null },
       formedAt
     );
     expect(due).toEqual(new Date(2028, 5, 30));
+  });
+
+  it("anniversary_month_first_day: due on the 1st of the formation month, 1 year out (Illinois)", () => {
+    // Formed September 16, 2026 — due September 1, 2027 (before the first
+    // day of the anniversary month, so the deadline IS that first day).
+    const formedAt = new Date(2026, 8, 16);
+    const due = calculateAnnualReportDueDate(
+      { notRequired: false, ruleType: "anniversary_month_first_day", cadence: "annual", fixedMonth: null, fixedDay: null, offsetMonths: null, offsetDay: null, yearParity: null },
+      formedAt
+    );
+    expect(due).toEqual(new Date(2027, 8, 1));
+  });
+
+  it("anniversary_quarter_end: due at the end of the calendar quarter containing the formation month (Wisconsin)", () => {
+    // Formed May 2026 (Q2: Apr-Jun) — due June 30, 2027.
+    const formedAt = new Date(2026, 4, 12);
+    const due = calculateAnnualReportDueDate(
+      { notRequired: false, ruleType: "anniversary_quarter_end", cadence: "annual", fixedMonth: null, fixedDay: null, offsetMonths: null, offsetDay: null, yearParity: null },
+      formedAt
+    );
+    expect(due).toEqual(new Date(2027, 5, 30));
+  });
+
+  it("anniversary_quarter_end: formation month in Q4 rolls to December 31", () => {
+    // Formed November 2026 (Q4: Oct-Dec) — due December 31, 2027.
+    const formedAt = new Date(2026, 10, 3);
+    const due = calculateAnnualReportDueDate(
+      { notRequired: false, ruleType: "anniversary_quarter_end", cadence: "annual", fixedMonth: null, fixedDay: null, offsetMonths: null, offsetDay: null, yearParity: null },
+      formedAt
+    );
+    expect(due).toEqual(new Date(2027, 11, 31));
   });
 });
 
@@ -115,6 +169,7 @@ describe("getComplianceRule — DB lookup uses full state names", () => {
           fixed_day: 1,
           offset_months: null,
           offset_day: null,
+          year_parity: null,
           entity_family: "llc",
         },
       ],
@@ -128,7 +183,28 @@ describe("getComplianceRule — DB lookup uses full state names", () => {
       fixedDay: 1,
       offsetMonths: null,
       offsetDay: null,
+      yearParity: null,
     });
+  });
+
+  it("parses a year_parity value from the row (Iowa-style odd-year-anchored rule)", async () => {
+    queryMock.mockResolvedValue({
+      rows: [
+        {
+          not_required: false,
+          rule_type: "fixed_date",
+          cadence: "biennial",
+          fixed_month: 4,
+          fixed_day: 1,
+          offset_months: null,
+          offset_day: null,
+          year_parity: "odd",
+          entity_family: "all",
+        },
+      ],
+    });
+    const rule = await getComplianceRule("Iowa", "llc");
+    expect(rule?.yearParity).toBe("odd");
   });
 
   it("returns null (falls back to approximation) when nothing matches — e.g. a two-letter code would land here", async () => {
