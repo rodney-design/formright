@@ -17,7 +17,8 @@ type RuleType =
   | "anniversary_exact_date"
   | "fiscal_year_offset"
   | "anniversary_month_first_day" // due on the 1st of the formation month, not the last day (Illinois)
-  | "anniversary_quarter_end";    // due at the end of the calendar quarter containing the formation month (Wisconsin)
+  | "anniversary_quarter_end"     // due at the end of the calendar quarter containing the formation month (Wisconsin)
+  | "anniversary_month_offset_end"; // due at the end of the Nth month after the formation month (offsetMonths) — Colorado's "end of the 2nd month following the anniversary month"
 type Cadence = "annual" | "biennial";
 type YearParity = "odd" | "even";
 
@@ -171,6 +172,22 @@ export function calculateAnnualReportDueDate(
     const yearsOut = rule.cadence === "biennial" ? 2 : 1;
     const quarterEndMonth = Math.floor(formedAt.getMonth() / 3) * 3 + 2;
     return new Date(formedAt.getFullYear() + yearsOut, quarterEndMonth + 1, 0);
+  }
+
+  if (rule.ruleType === "anniversary_month_offset_end") {
+    // Due on the last day of the Nth month after the formation month, 1
+    // year out (Colorado: "end of the second month following the
+    // anniversary month" -> offsetMonths = 2). Unlike fiscal_year_offset,
+    // this counts from the formation month itself, not a fiscal year end,
+    // so it doesn't go through calculateFiscalYearOffsetDate.
+    if (rule.offsetMonths == null) {
+      throw new Error("anniversary_month_offset_end rule missing offsetMonths");
+    }
+    const yearsOut = rule.cadence === "biennial" ? 2 : 1;
+    const totalMonth = formedAt.getMonth() + rule.offsetMonths;
+    const year = formedAt.getFullYear() + yearsOut + Math.floor(totalMonth / 12);
+    const month = ((totalMonth % 12) + 12) % 12;
+    return rule.offsetDay == null ? new Date(year, month + 1, 0) : new Date(year, month, rule.offsetDay);
   }
 
   if (rule.ruleType === "anniversary_exact_date") {

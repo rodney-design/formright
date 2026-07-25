@@ -60,6 +60,35 @@ describe("calculateAnnualReportDueDate", () => {
     expect(due).toEqual(new Date(2027, 3, 1));
   });
 
+  it("fixed_date + biennial (no year_parity): naturally preserves the formation year's parity (Alaska)", () => {
+    // Alaska's Jan 2 biennial deadline doesn't pin a fixed parity like Iowa
+    // — it just files on whichever parity the entity originally formed in.
+    // Plain fixed_date + biennial (no year_parity set) already produces
+    // this because rolling forward by exactly 2 years never changes parity.
+    const formedEven = calculateAnnualReportDueDate(
+      { notRequired: false, ruleType: "fixed_date", cadence: "biennial", fixedMonth: 1, fixedDay: 2, offsetMonths: null, offsetDay: null, yearParity: null },
+      new Date(2026, 5, 10) // formed in 2026, an even year
+    );
+    expect(formedEven).toEqual(new Date(2028, 0, 2));
+
+    const formedOdd = calculateAnnualReportDueDate(
+      { notRequired: false, ruleType: "fixed_date", cadence: "biennial", fixedMonth: 1, fixedDay: 2, offsetMonths: null, offsetDay: null, yearParity: null },
+      new Date(2027, 5, 10) // formed in 2027, an odd year
+    );
+    expect(formedOdd).toEqual(new Date(2029, 0, 2));
+  });
+
+  it("fixed_date + year_parity 'even': Nebraska business-corporation schedule", () => {
+    // Nebraska corporations file Mar 1 of even years, distinct from the
+    // LLC/nonprofit odd-year Apr 1 schedule — confirms year_parity works
+    // for 'even', not just the 'odd' case exercised by the Iowa tests.
+    const due = calculateAnnualReportDueDate(
+      { notRequired: false, ruleType: "fixed_date", cadence: "biennial", fixedMonth: 3, fixedDay: 1, offsetMonths: null, offsetDay: null, yearParity: "even" },
+      new Date(2026, 5, 10) // formed June 2026 — Mar 1, 2026 already passed
+    );
+    expect(due).toEqual(new Date(2028, 2, 1));
+  });
+
   it("anniversary_month_last_day + annual: last day of formation month, 1 year out", () => {
     // Formed June 10, 2026 (California corporation) — due June 30, 2027.
     const formedAt = new Date(2026, 5, 10);
@@ -109,6 +138,28 @@ describe("calculateAnnualReportDueDate", () => {
       formedAt
     );
     expect(due).toEqual(new Date(2027, 11, 31));
+  });
+
+  it("anniversary_month_offset_end: due at the end of the 2nd month after the anniversary month (Colorado)", () => {
+    // Formed March 2026 — anniversary month is March, due end of the 2nd
+    // month following (May), 1 year out: May 31, 2027.
+    const formedAt = new Date(2026, 2, 12);
+    const due = calculateAnnualReportDueDate(
+      { notRequired: false, ruleType: "anniversary_month_offset_end", cadence: "annual", fixedMonth: null, fixedDay: null, offsetMonths: 2, offsetDay: null, yearParity: null },
+      formedAt
+    );
+    expect(due).toEqual(new Date(2027, 4, 31));
+  });
+
+  it("anniversary_month_offset_end: rolls the calendar year forward when the offset crosses December", () => {
+    // Formed November 2026 — 2nd month after November is January, which
+    // rolls into 2028 (one year out from November 2027's anniversary).
+    const formedAt = new Date(2026, 10, 3);
+    const due = calculateAnnualReportDueDate(
+      { notRequired: false, ruleType: "anniversary_month_offset_end", cadence: "annual", fixedMonth: null, fixedDay: null, offsetMonths: 2, offsetDay: null, yearParity: null },
+      formedAt
+    );
+    expect(due).toEqual(new Date(2028, 0, 31));
   });
 });
 

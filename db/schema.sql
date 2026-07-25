@@ -223,6 +223,7 @@ CREATE TABLE compliance_rules (
     'anniversary_month_last_day', -- last day of the formation month (CA, NY, NJ, VA, CT-corp style)
     'anniversary_month_first_day',-- 1st day of the formation month (Illinois)
     'anniversary_quarter_end',    -- last day of the calendar quarter containing the formation month (Wisconsin)
+    'anniversary_month_offset_end', -- last day of the Nth month after the formation month (offset_months) (Colorado)
     'anniversary_exact_date',     -- the literal formation date each year (Massachusetts LLC style)
     'fiscal_year_offset'          -- N months after fiscal year end, day D or last-day-of-month (offset_months/offset_day)
   )),
