@@ -1,23 +1,27 @@
 // Compliance rules engine (System 3) — data-driven per-state annual-report
-// due dates for the 5 priority states, replacing the formation-anniversary
-// approximation in seedComplianceEvents() for states with a verified rule.
-// See db/migrations/007_compliance_rules.sql for sourcing. Split from
-// complianceEvents.ts (rather than adding a DB call there) for the same
-// reason as stateFeesTable.ts/stateFees.ts: keeps the pure fallback
+// due dates, replacing the formation-anniversary approximation in
+// seedComplianceEvents() for states with a verified rule. See
+// db/migrations/007_compliance_rules.sql (DE/CA/FL/NY/TX) and
+// db/migrations/008_compliance_rules_northeast_midatlantic.sql for sourcing.
+// Split from complianceEvents.ts (rather than adding a DB call there) for
+// the same reason as stateFeesTable.ts/stateFees.ts: keeps the pure fallback
 // importable from contexts that shouldn't pull in `pg`.
 import "server-only";
 import { query } from "@/lib/db";
 import type { EntityFamily } from "./entityFamily";
 import { seedComplianceEvents, type ComplianceEventSeed } from "./complianceEvents";
 
-type RuleType = "fixed_date" | "anniversary_month_last_day";
+type RuleType = "fixed_date" | "anniversary_month_last_day" | "anniversary_exact_date" | "fiscal_year_offset";
 type Cadence = "annual" | "biennial";
 
 export interface ComplianceRule {
-  ruleType: RuleType;
-  cadence: Cadence;
+  notRequired: boolean;
+  ruleType: RuleType | null;
+  cadence: Cadence | null;
   fixedMonth: number | null;
   fixedDay: number | null;
+  offsetMonths: number | null;
+  offsetDay: number | null; // null under fiscal_year_offset means "last day of the target month"
 }
 
 // Exact entity_family match wins; 'all' is the wildcard fallback within the
@@ -29,13 +33,16 @@ export async function getComplianceRule(
   family: EntityFamily
 ): Promise<ComplianceRule | null> {
   const result = await query<{
-    rule_type: RuleType;
-    cadence: Cadence;
+    not_required: boolean;
+    rule_type: RuleType | null;
+    cadence: Cadence | null;
     fixed_month: number | null;
     fixed_day: number | null;
+    offset_months: number | null;
+    offset_day: number | null;
     entity_family: string;
   }>(
-    `SELECT rule_type, cadence, fixed_month, fixed_day, entity_family
+    `SELECT not_required, rule_type, cadence, fixed_month, fixed_day, offset_months, offset_day, entity_family
      FROM compliance_rules
      WHERE state = $1 AND entity_family IN ($2, 'all') AND event_type = 'annual_report'
      ORDER BY (entity_family = $2) DESC
@@ -45,32 +52,14 @@ export async function getComplianceRule(
   const row = result.rows[0];
   if (!row) return null;
   return {
+    notRequired: row.not_required,
     ruleType: row.rule_type,
     cadence: row.cadence,
     fixedMonth: row.fixed_month,
     fixedDay: row.fixed_day,
+    offsetMonths: row.offset_months,
+    offsetDay: row.offset_day,
   };
-}
-
-// Pure — the actual date math, kept separate from the DB lookup so it's
-// unit-testable without a database.
-export function calculateAnnualReportDueDate(rule: ComplianceRule, formedAt: Date): Date {
-  if (rule.ruleType === "fixed_date") {
-    if (rule.fixedMonth == null || rule.fixedDay == null) {
-      throw new Error("fixed_date rule missing fixedMonth/fixedDay");
-    }
-    let candidate = new Date(formedAt.getFullYear(), rule.fixedMonth - 1, rule.fixedDay);
-    if (candidate <= formedAt) {
-      candidate = new Date(formedAt.getFullYear() + 1, rule.fixedMonth - 1, rule.fixedDay);
-    }
-    return candidate;
-  }
-
-  // anniversary_month_last_day: due on the last day of the formation month,
-  // 1 year out (annual) or 2 years out (biennial). `new Date(y, m+1, 0)` is
-  // the standard "last day of month m" trick (day 0 of the following month).
-  const yearsOut = rule.cadence === "biennial" ? 2 : 1;
-  return new Date(formedAt.getFullYear() + yearsOut, formedAt.getMonth() + 1, 0);
 }
 
 const MONTH_NAMES = [
@@ -87,32 +76,100 @@ function parseFiscalYearEndMonth(fiscalYearLabel: string | null | undefined): nu
   return idx === -1 ? 11 : idx; // 0-indexed; default December = 11
 }
 
+// Shared "N months after a given month, landing on day D (or the last day of
+// that month when D is null), rolled forward a year if already passed"
+// calculator — the same shape as the pre-existing Form 990-N math below, now
+// generalized for state corporate filings tied to fiscal year end rather
+// than a fixed calendar date (MA/NC/SC corporations, VT all entities).
+function calculateFiscalYearOffsetDate(
+  fyEndMonth: number, // 0-indexed
+  offsetMonths: number,
+  offsetDay: number | null,
+  formedAt: Date
+): Date {
+  const dueMonthTotal = fyEndMonth + offsetMonths;
+  const dueMonth = dueMonthTotal % 12;
+  const yearOffset = Math.floor(dueMonthTotal / 12);
+
+  const build = (year: number) =>
+    offsetDay == null ? new Date(year, dueMonth + 1, 0) : new Date(year, dueMonth, offsetDay);
+
+  let dueYear = formedAt.getFullYear() + yearOffset;
+  let candidate = build(dueYear);
+  if (candidate <= formedAt) {
+    dueYear = formedAt.getFullYear() + 1 + yearOffset;
+    candidate = build(dueYear);
+  }
+  return candidate;
+}
+
+// Pure — the actual date math, kept separate from the DB lookup so it's
+// unit-testable without a database. Returns null when the rule says the
+// event doesn't apply (notRequired) — caller should skip generating an
+// annual_report event entirely rather than falling back to a guess.
+export function calculateAnnualReportDueDate(
+  rule: ComplianceRule,
+  formedAt: Date,
+  fiscalYearLabel?: string | null
+): Date | null {
+  if (rule.notRequired) return null;
+
+  if (rule.ruleType === "fixed_date") {
+    if (rule.fixedMonth == null || rule.fixedDay == null) {
+      throw new Error("fixed_date rule missing fixedMonth/fixedDay");
+    }
+    const cadenceYears = rule.cadence === "biennial" ? 2 : 1;
+    let candidate = new Date(formedAt.getFullYear(), rule.fixedMonth - 1, rule.fixedDay);
+    if (candidate <= formedAt) {
+      candidate = new Date(formedAt.getFullYear() + cadenceYears, rule.fixedMonth - 1, rule.fixedDay);
+    }
+    return candidate;
+  }
+
+  if (rule.ruleType === "anniversary_month_last_day") {
+    // Due on the last day of the formation month, 1 year out (annual) or 2
+    // years out (biennial). `new Date(y, m+1, 0)` is the standard "last day
+    // of month m" trick (day 0 of the following month).
+    const yearsOut = rule.cadence === "biennial" ? 2 : 1;
+    return new Date(formedAt.getFullYear() + yearsOut, formedAt.getMonth() + 1, 0);
+  }
+
+  if (rule.ruleType === "anniversary_exact_date") {
+    // Due on the exact calendar date of formation, 1 year out (e.g.
+    // Massachusetts LLCs — not month-end, the literal anniversary).
+    const yearsOut = rule.cadence === "biennial" ? 2 : 1;
+    return new Date(formedAt.getFullYear() + yearsOut, formedAt.getMonth(), formedAt.getDate());
+  }
+
+  if (rule.ruleType === "fiscal_year_offset") {
+    if (rule.offsetMonths == null) {
+      throw new Error("fiscal_year_offset rule missing offsetMonths");
+    }
+    const fyEndMonth = parseFiscalYearEndMonth(fiscalYearLabel);
+    return calculateFiscalYearOffsetDate(fyEndMonth, rule.offsetMonths, rule.offsetDay, formedAt);
+  }
+
+  throw new Error(`Unhandled compliance rule type: ${rule.ruleType}`);
+}
+
 // IRS Form 990-N (e-Postcard): due the 15th day of the 5th month after the
 // close of the organization's tax year. Not eligible for extension. For a
 // calendar-year org that's May 15 — NOT January 31 (a figure that appeared
 // in an earlier task spec but doesn't match the IRS rule; verified against
 // irs.gov/charities-non-profits/annual-electronic-notice-form-990-n-frequently-asked-questions).
+// Federal, not state-specific, so this doesn't live in compliance_rules.
 export function calculateForm990NDueDate(fiscalYearLabel: string | null | undefined, formedAt: Date): Date {
-  const fyEndMonth = parseFiscalYearEndMonth(fiscalYearLabel); // 0-indexed
-  const dueMonthTotal = fyEndMonth + 5; // 5th month after fiscal year end
-  const dueMonth = dueMonthTotal % 12;
-  const yearOffset = Math.floor(dueMonthTotal / 12);
-
-  let dueYear = formedAt.getFullYear() + yearOffset;
-  let candidate = new Date(dueYear, dueMonth, 15);
-  if (candidate <= formedAt) {
-    dueYear = formedAt.getFullYear() + 1 + yearOffset;
-    candidate = new Date(dueYear, dueMonth, 15);
-  }
-  return candidate;
+  const fyEndMonth = parseFiscalYearEndMonth(fiscalYearLabel);
+  return calculateFiscalYearOffsetDate(fyEndMonth, 5, 15, formedAt);
 }
 
 // State-aware entry point used by registration creation (checkout, /api/v1/formations).
 // Starts from seedComplianceEvents()'s baseline (2553 election, benefit report,
 // the anniversary-approximated annual_report), then:
 //  - overrides annual_report with the verified per-state due date when a
-//    compliance_rules row exists for (state, family) — otherwise the
-//    approximation stands;
+//    compliance_rules row exists for (state, family) — or removes it
+//    entirely when the rule says the state doesn't require one — otherwise
+//    the approximation stands;
 //  - adds a 990-N event for nonprofits, computed from the registration's
 //    actual fiscal year rather than assuming a fixed date.
 export async function seedComplianceEventsForRegistration(
@@ -125,10 +182,15 @@ export async function seedComplianceEventsForRegistration(
 
   const rule = await getComplianceRule(state, family);
   if (rule) {
-    const dueDate = calculateAnnualReportDueDate(rule, formedAt);
+    const dueDate = calculateAnnualReportDueDate(rule, formedAt, fiscalYearLabel);
     const idx = events.findIndex((e) => e.eventType === "annual_report");
-    if (idx >= 0) events[idx] = { eventType: "annual_report", dueDate };
-    else events.push({ eventType: "annual_report", dueDate });
+    if (dueDate === null) {
+      if (idx >= 0) events.splice(idx, 1);
+    } else if (idx >= 0) {
+      events[idx] = { eventType: "annual_report", dueDate };
+    } else {
+      events.push({ eventType: "annual_report", dueDate });
+    }
   }
 
   if (family === "nonprofit") {

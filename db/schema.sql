@@ -212,12 +212,26 @@ CREATE TABLE compliance_rules (
   state TEXT NOT NULL,
   entity_family TEXT NOT NULL,  -- llc/ccorp/scorp/nonprofit/benefit/pc, or 'all'
   event_type TEXT NOT NULL DEFAULT 'annual_report',
-  rule_type TEXT NOT NULL CHECK (rule_type IN ('fixed_date', 'anniversary_month_last_day')),
-  cadence TEXT NOT NULL CHECK (cadence IN ('annual', 'biennial')),
+  -- not_required = true means this (state, entity_family) has no annual
+  -- report/renewal obligation at all (e.g. a plain South Carolina LLC not
+  -- taxed as a corporation) — the app skips generating the event entirely
+  -- rather than falling back to a guessed date. rule_type/cadence are NULL
+  -- in that case; the CHECK enforces one or the other, not both missing.
+  not_required BOOLEAN NOT NULL DEFAULT false,
+  rule_type TEXT CHECK (rule_type IN (
+    'fixed_date',                 -- same calendar date every year/biennium (fixed_month/fixed_day)
+    'anniversary_month_last_day', -- last day of the formation month (CA, NY, NJ, VA, CT-corp style)
+    'anniversary_exact_date',     -- the literal formation date each year (Massachusetts LLC style)
+    'fiscal_year_offset'          -- N months after fiscal year end, day D or last-day-of-month (offset_months/offset_day)
+  )),
+  cadence TEXT CHECK (cadence IN ('annual', 'biennial')),
   fixed_month INTEGER CHECK (fixed_month BETWEEN 1 AND 12),  -- only for rule_type = 'fixed_date'
   fixed_day INTEGER CHECK (fixed_day BETWEEN 1 AND 31),      -- only for rule_type = 'fixed_date'
+  offset_months INTEGER,     -- only for rule_type = 'fiscal_year_offset'
+  offset_day INTEGER CHECK (offset_day BETWEEN 1 AND 31),  -- fiscal_year_offset only; NULL = last day of the target month
   notes TEXT,
   source TEXT,               -- citation for the verified figure
   verified_at DATE NOT NULL,
-  UNIQUE (state, entity_family, event_type)
+  UNIQUE (state, entity_family, event_type),
+  CHECK (not_required OR (rule_type IS NOT NULL AND cadence IS NOT NULL))
 );

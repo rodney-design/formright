@@ -14,7 +14,7 @@ describe("calculateAnnualReportDueDate", () => {
     // so the first due date should be March 1, 2027, not 2026.
     const formedAt = new Date(2026, 6, 15); // July 15, 2026
     const due = calculateAnnualReportDueDate(
-      { ruleType: "fixed_date", cadence: "annual", fixedMonth: 3, fixedDay: 1 },
+      { notRequired: false, ruleType: "fixed_date", cadence: "annual", fixedMonth: 3, fixedDay: 1, offsetMonths: null, offsetDay: null },
       formedAt
     );
     expect(due).toEqual(new Date(2027, 2, 1));
@@ -24,7 +24,7 @@ describe("calculateAnnualReportDueDate", () => {
     // Formed January 2026 — Delaware LLC's June 1 tax deadline is still ahead.
     const formedAt = new Date(2026, 0, 10);
     const due = calculateAnnualReportDueDate(
-      { ruleType: "fixed_date", cadence: "annual", fixedMonth: 6, fixedDay: 1 },
+      { notRequired: false, ruleType: "fixed_date", cadence: "annual", fixedMonth: 6, fixedDay: 1, offsetMonths: null, offsetDay: null },
       formedAt
     );
     expect(due).toEqual(new Date(2026, 5, 1));
@@ -34,7 +34,7 @@ describe("calculateAnnualReportDueDate", () => {
     // Formed June 10, 2026 (California corporation) — due June 30, 2027.
     const formedAt = new Date(2026, 5, 10);
     const due = calculateAnnualReportDueDate(
-      { ruleType: "anniversary_month_last_day", cadence: "annual", fixedMonth: null, fixedDay: null },
+      { notRequired: false, ruleType: "anniversary_month_last_day", cadence: "annual", fixedMonth: null, fixedDay: null, offsetMonths: null, offsetDay: null },
       formedAt
     );
     expect(due).toEqual(new Date(2027, 5, 30));
@@ -44,7 +44,7 @@ describe("calculateAnnualReportDueDate", () => {
     // Formed June 10, 2026 (California LLC) — due June 30, 2028.
     const formedAt = new Date(2026, 5, 10);
     const due = calculateAnnualReportDueDate(
-      { ruleType: "anniversary_month_last_day", cadence: "biennial", fixedMonth: null, fixedDay: null },
+      { notRequired: false, ruleType: "anniversary_month_last_day", cadence: "biennial", fixedMonth: null, fixedDay: null, offsetMonths: null, offsetDay: null },
       formedAt
     );
     expect(due).toEqual(new Date(2028, 5, 30));
