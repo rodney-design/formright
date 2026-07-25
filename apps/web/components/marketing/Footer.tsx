@@ -20,7 +20,7 @@ const ENTITY_TAGS = [
   { label: "Prof Corp", border: "border-[#6366F1]/25", text: "text-[#818CF8]" },
 ];
 
-export default function Footer() {
+export default function Footer({ isAdmin }: { isAdmin: boolean }) {
   return (
     <footer className="bg-navy px-6 pb-8 pt-16 md:px-12">
       <div className="mx-auto max-w-[1100px]">
@@ -111,9 +111,11 @@ export default function Footer() {
             <Link href="/disclaimer" className="mb-[10px] block font-sans text-[.875rem] text-white/60 transition-colors hover:text-white">
               Disclaimer
             </Link>
-            <Link href="/admin" className="mb-[10px] block font-sans text-[.875rem] text-white/60 transition-colors hover:text-white">
-              Admin
-            </Link>
+            {isAdmin && (
+              <Link href="/admin" className="mb-[10px] block font-sans text-[.875rem] text-white/60 transition-colors hover:text-white">
+                Admin
+              </Link>
+            )}
           </div>
         </div>
 
