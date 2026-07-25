@@ -48,6 +48,27 @@ not a duplicate of it.
 - **PR #2** (merged): the onboarding wizard page (`app/onboard/page.tsx`) had a redundant
   `min-h-screen` stacked on top of the Wizard component's own `min-h-[70vh]`, pushing the
   page to 932px against a 900px viewport. Removed; page now sizes to the viewport exactly.
+- **PR #3** (merged): added this file.
+- **PR #4** (merged): the public "Admin" nav link was visible to every visitor, not just
+  admins — found in both `Nav.tsx` and `Footer.tsx` (two separate components, two separate
+  instances of the same bug). `(marketing)/layout.tsx` now computes `isAdmin` server-side
+  and passes it to both.
+- **PR #5** (merged): marketing site "filing room" visual redesign — ledger-cream/ink-navy/
+  filing-stamp-red palette (new Tailwind tokens: `paper`, `ink`, `stamp`, `brass`, `rule`,
+  additive alongside the existing `navy`/`teal`/`gold` tokens), a real Articles-of-
+  Incorporation document artifact in the hero, seal-style logo mark. **Scoped to the
+  marketing site only** — the logged-in app (dashboard/admin/firm) still uses the old
+  palette; extending the identity there is an open decision, not yet made.
+- **PR #6** (merged): `buildEIN` and `buildResolutions` (`lib/doc-engine/builders/
+  nonprofit.ts`) are registered under `DOC_CONFIG` keys shared by all 7 entity families,
+  but contained hardcoded nonprofit-only content (wrong SS-4 entity classification, wrong
+  IRS.gov navigation steps, nonprofit-specific board resolutions like "Appointment of
+  Executive Director"). Fixed with `entityFamily()`-based branching; a new
+  `buildResolutionsCorp()` in `builders/corp.ts` now serves LLC/C-Corp/S-Corp/Benefit/PC
+  under a `resolutions_corp` key, nonprofit keeps its own unchanged `resolutions` key.
+  Verified by generating real `.docx` output for all 7 families and inspecting the
+  extracted `word/document.xml`, not just reading the code.
+- **PR #7** (merged): added the automated test suite — see "Testing posture" below.
 
 ## Storage backend: Supabase, not AWS
 
@@ -71,27 +92,35 @@ before it's worth touching.
 
 ## Testing posture
 
-No automated test suite exists (no jest/vitest/playwright, no `*.test.*` files). Every
-verification claim in this project's history came from actually running the app — local
-Postgres, dummy env vars, a real dev server, curl/Playwright against it, and (for Stripe
-webhooks) a locally HMAC-signed event using the same webhook secret. If you're going to
-claim something works, run it the same way; don't infer correctness from reading the code.
+`apps/web/tests/` has a small `vitest` suite (`npm test`, wired into `ci.yml`) covering the
+three reliability bugs fixed in PR #1 — Stripe webhook side-effect isolation, checkout
+rollback, magic-link error handling — with mocked DB/Stripe/email so the tests exercise the
+real control-flow code without live services. That's it, though: it's a regression net for
+those three specific fixed bugs, not general coverage. Everything else in this project's
+history has been verified by actually running the app — local Postgres, dummy env vars, a
+real dev server, curl/Playwright against it, and (for Stripe webhooks) a locally
+HMAC-signed event using the same webhook secret. If you're going to claim something works
+and it's not one of the three paths the vitest suite covers, run it the same way; don't
+infer correctness from reading the code.
 
 ## Outstanding before launch (human action required — cannot be done from a sandbox)
 
-None of this can be provisioned from an agent sandbox; it needs real accounts/credentials:
+None of this can be provisioned or verified from an agent sandbox; it needs real
+accounts/credentials:
 
-1. **Supabase project** — Postgres (`DATABASE_URL`) + a private Storage bucket
-   (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET`). Load
-   `db/schema.sql` into it.
-2. **Vercel project** — import the repo, root directory `apps/web`, every var from
-   `.env.example` set in Production + Preview.
+1. ~~Supabase project~~ — **done**: Postgres provisioned, `db/schema.sql` loaded, Storage
+   bucket created, connection confirmed live. (Direct Postgres connection is IPv6-only;
+   use Supabase's connection pooler if provisioning from an IPv6-less environment again —
+   also just the architecturally correct choice for serverless regardless.)
+2. ~~Vercel project~~ — **done**: imported, root directory `apps/web`, deployed
+   successfully, live URL confirmed.
 3. **Stripe** — live/test keys, and a webhook endpoint registered at
    `/api/webhooks/stripe` subscribed to `payment_intent.succeeded`,
    `payment_intent.payment_failed`, `checkout.session.completed`,
    `customer.subscription.updated`, `customer.subscription.deleted`.
 4. **SendGrid** — verified sender identity/domain (required or mail gets blocked/spam-
-   filtered), API key.
+   filtered), API key. (`lib/email.ts` is already wired to `@sendgrid/mail` — no code
+   change needed, just the account-side setup.)
 5. **Anthropic API key** for the dashboard assistant feature.
 6. `JWT_SECRET` / `CRON_SECRET` — generate random strings (`openssl rand -hex 32`).
    `CRON_SECRET` just needs to be set in Vercel — Vercel Cron sends it automatically.
@@ -99,11 +128,10 @@ None of this can be provisioned from an agent sandbox; it needs real accounts/cr
    swallowed errors to Sentry; without a DSN those reports just no-op silently.
 8. `FIRM_SEAT_PRICE_CENTS` — only if Pro-tier per-seat billing needs to be live at launch;
    otherwise leave unset (that one endpoint just errors until it's set).
-9. Once real credentials exist: smoke-test the golden path for real (signup → checkout →
-   webhook fires → document generates in Supabase Storage → downloads), not just against
-   dummy values.
-10. Delete `origin/claude/formright-repo-clone-ga286e` on GitHub (merged twice over via
-    PR #1 and #2, safe to remove — this session's git proxy can't do it, see above).
+9. Once real credentials exist for #3-5: smoke-test the golden path for real (signup →
+   checkout → webhook fires → document generates in Supabase Storage → downloads), not
+   just against dummy values. **Not done yet** — this is the single biggest remaining
+   launch risk; nothing else on this list matters if this hasn't happened.
 
 ## Local dev / verification recipe
 
@@ -111,7 +139,7 @@ None of this can be provisioned from an agent sandbox; it needs real accounts/cr
 sudo service postgresql start
 createdb formright_test && psql formright_test -f db/schema.sql
 cd apps/web && cp .env.example .env.local   # fill with dummy values for a local check
-npm install && npm run lint && npx tsc --noEmit && npm run build
+npm install && npm run lint && npx tsc --noEmit && npm test && npm run build
 PORT=4100 npm run dev   # pick an explicit port; stale dev-server processes on 3000+ are common in sandboxed runs
 ```
 
