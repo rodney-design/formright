@@ -39,6 +39,27 @@ const config: Config = {
         "ec-sole": "#F97316",
         "ec-benefit": "#16A34A",
         "ec-pc": "#6366F1",
+        // Marketing site v3 — "filing room" palette. Scoped to the public
+        // marketing pages only; the logged-in app (dashboard/admin/firm)
+        // keeps the navy/teal/gold system above.
+        paper: {
+          DEFAULT: "#F3EEE2",
+          white: "#FAF7EF",
+        },
+        ink: {
+          DEFAULT: "#14213D",
+          light: "#2A3B5C",
+          faint: "#5B6478",
+        },
+        stamp: {
+          DEFAULT: "#A8351D",
+          dark: "#832712",
+        },
+        brass: {
+          DEFAULT: "#B8892E",
+          light: "#DDBE5A",
+        },
+        rule: "#D8CFB8",
       },
       fontFamily: {
         serif: ["var(--font-fraunces)", "Georgia", "serif"],

@@ -29,41 +29,41 @@ export default function ContactPage() {
     >
       {/* Contact cards */}
       <div className="my-8 grid grid-cols-1 gap-5 sm:grid-cols-3">
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center">
+        <div className="rounded-sm border border-rule bg-paper p-6 text-center">
           <div className="mb-3 text-[2rem]">📧</div>
-          <div className="mb-[6px] font-bold text-navy">General Inquiries</div>
-          <div className="mb-3 text-[.85rem] text-slate-500">
+          <div className="mb-[6px] font-bold text-ink">General Inquiries</div>
+          <div className="mb-3 text-[.85rem] text-ink-faint">
             Questions about our services or platform
           </div>
           <a
             href="mailto:hello@rightform.org"
-            className="text-[.9rem] font-semibold text-teal no-underline"
+            className="text-[.9rem] font-semibold text-stamp no-underline"
           >
             hello@rightform.org
           </a>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center">
+        <div className="rounded-sm border border-rule bg-paper p-6 text-center">
           <div className="mb-3 text-[2rem]">⚖️</div>
-          <div className="mb-[6px] font-bold text-navy">Legal &amp; Compliance</div>
-          <div className="mb-3 text-[.85rem] text-slate-500">
+          <div className="mb-[6px] font-bold text-ink">Legal &amp; Compliance</div>
+          <div className="mb-3 text-[.85rem] text-ink-faint">
             Terms, privacy, and legal notices
           </div>
           <a
             href="mailto:legal@rightform.org"
-            className="text-[.9rem] font-semibold text-teal no-underline"
+            className="text-[.9rem] font-semibold text-stamp no-underline"
           >
             legal@rightform.org
           </a>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center">
+        <div className="rounded-sm border border-rule bg-paper p-6 text-center">
           <div className="mb-3 text-[2rem]">💳</div>
-          <div className="mb-[6px] font-bold text-navy">Billing</div>
-          <div className="mb-3 text-[.85rem] text-slate-500">
+          <div className="mb-[6px] font-bold text-ink">Billing</div>
+          <div className="mb-3 text-[.85rem] text-ink-faint">
             Payments, refunds, and invoices
           </div>
           <a
             href="mailto:billing@rightform.org"
-            className="text-[.9rem] font-semibold text-teal no-underline"
+            className="text-[.9rem] font-semibold text-stamp no-underline"
           >
             billing@rightform.org
           </a>
@@ -77,50 +77,50 @@ export default function ContactPage() {
         message.
       </p>
 
-      <form className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-9">
+      <form className="mt-6 rounded-sm border border-rule bg-paper p-9">
         <div className="mb-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
           <div>
-            <label className="mb-1 block text-sm font-medium text-navy" htmlFor="contact-fname">
+            <label className="mb-1 block text-sm font-medium text-ink" htmlFor="contact-fname">
               First Name
             </label>
             <input
               id="contact-fname"
               type="text"
               placeholder="Jane"
-              className="w-full rounded-lg border border-slate-300 px-[14px] py-[10px] text-[.95rem] text-navy"
+              className="w-full rounded border border-rule px-[14px] py-[10px] text-[.95rem] text-ink"
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-navy" htmlFor="contact-lname">
+            <label className="mb-1 block text-sm font-medium text-ink" htmlFor="contact-lname">
               Last Name
             </label>
             <input
               id="contact-lname"
               type="text"
               placeholder="Smith"
-              className="w-full rounded-lg border border-slate-300 px-[14px] py-[10px] text-[.95rem] text-navy"
+              className="w-full rounded border border-rule px-[14px] py-[10px] text-[.95rem] text-ink"
             />
           </div>
         </div>
         <div className="mb-5">
-          <label className="mb-1 block text-sm font-medium text-navy" htmlFor="contact-email">
+          <label className="mb-1 block text-sm font-medium text-ink" htmlFor="contact-email">
             Email Address
           </label>
           <input
             id="contact-email"
             type="email"
             placeholder="jane@example.org"
-            className="w-full rounded-lg border border-slate-300 px-[14px] py-[10px] text-[.95rem] text-navy"
+            className="w-full rounded border border-rule px-[14px] py-[10px] text-[.95rem] text-ink"
           />
         </div>
         <div className="mb-5">
-          <label className="mb-1 block text-sm font-medium text-navy" htmlFor="contact-subject">
+          <label className="mb-1 block text-sm font-medium text-ink" htmlFor="contact-subject">
             Subject
           </label>
           <select
             id="contact-subject"
             defaultValue=""
-            className="w-full rounded-lg border border-slate-300 bg-white px-[14px] py-[10px] text-[.95rem] text-navy"
+            className="w-full rounded border border-rule bg-paper-white px-[14px] py-[10px] text-[.95rem] text-ink"
           >
             <option value="">Select a topic…</option>
             {SUBJECT_OPTIONS.map((opt) => (
@@ -129,19 +129,19 @@ export default function ContactPage() {
           </select>
         </div>
         <div className="mb-7">
-          <label className="mb-1 block text-sm font-medium text-navy" htmlFor="contact-msg">
+          <label className="mb-1 block text-sm font-medium text-ink" htmlFor="contact-msg">
             Message
           </label>
           <textarea
             id="contact-msg"
             rows={5}
             placeholder="Tell us how we can help. Include your order ID if applicable…"
-            className="w-full resize-y rounded-lg border border-slate-300 px-[14px] py-[10px] text-[.95rem] text-navy"
+            className="w-full resize-y rounded border border-rule px-[14px] py-[10px] text-[.95rem] text-ink"
           />
         </div>
         <button
           type="submit"
-          className="flex w-full items-center justify-center gap-2 rounded-brand bg-gold px-9 py-[15px] font-sans text-base font-bold text-navy shadow-gold"
+          className="flex w-full items-center justify-center gap-2 rounded bg-stamp px-9 py-[15px] font-sans text-base font-bold text-paper-white"
         >
           Send Message →
         </button>

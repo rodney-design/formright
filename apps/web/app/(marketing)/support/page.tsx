@@ -28,7 +28,7 @@ export default function SupportPage() {
       <div className="my-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Link
           href="/contact"
-          className="flex items-center gap-[14px] rounded-xl bg-teal px-6 py-5 text-white"
+          className="flex items-center gap-[14px] rounded-sm bg-stamp px-6 py-5 text-paper-white"
         >
           <span className="text-2xl">✉️</span>
           <div>
@@ -38,7 +38,7 @@ export default function SupportPage() {
         </Link>
         <a
           href="mailto:support@rightform.org"
-          className="flex items-center gap-[14px] rounded-xl bg-navy px-6 py-5 text-white"
+          className="flex items-center gap-[14px] rounded-sm bg-ink px-6 py-5 text-paper-white"
         >
           <span className="text-2xl">📞</span>
           <div>

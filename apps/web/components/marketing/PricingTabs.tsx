@@ -103,14 +103,14 @@ function PlanCard({ plan, accent }: { plan: PricingPlan; accent: string }) {
 
   if (plan.featured) {
     return (
-      <div className="relative rounded-brand-lg border-2 border-teal bg-navy p-8 text-white">
-        <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-gold px-[14px] py-1 text-[.72rem] font-bold uppercase tracking-[.05em] text-navy">
+      <div className="relative rounded-sm border-2 border-stamp bg-ink p-8 text-paper-white">
+        <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-stamp px-[14px] py-1 text-[.72rem] font-bold uppercase tracking-[.05em] text-paper-white">
           Most Popular
         </span>
-        <div className="mb-3 text-[.78rem] font-bold uppercase tracking-[.1em] text-teal-light">
+        <div className="mb-3 text-[.78rem] font-bold uppercase tracking-[.1em] text-brass-light">
           {plan.name}
         </div>
-        <div className="font-serif text-[2.8rem] font-bold leading-none text-white">
+        <div className="font-serif text-[2.8rem] font-bold leading-none text-paper-white">
           <span className="align-super text-[1.2rem] font-normal text-white/50">$</span>
           {formatPrice(plan.priceCents).replace("$", "")}
         </div>
@@ -127,7 +127,7 @@ function PlanCard({ plan, accent }: { plan: PricingPlan; accent: string }) {
         </ul>
         <Link
           href={href}
-          className="block w-full rounded-brand bg-gold px-4 py-[13px] text-center font-sans text-[.9rem] font-bold text-navy"
+          className="block w-full rounded bg-stamp px-4 py-[13px] text-center font-sans text-[.9rem] font-bold text-paper-white"
         >
           {plan.ctaLabel} →
         </Link>
@@ -138,24 +138,24 @@ function PlanCard({ plan, accent }: { plan: PricingPlan; accent: string }) {
   const isContact = plan.ctaAction === "contact";
 
   return (
-    <div className="relative rounded-brand-lg border-2 border-slate-200 bg-white p-8 transition-all hover:-translate-y-1 hover:border-teal hover:shadow-teal">
+    <div className="relative rounded-sm border-2 border-rule bg-paper-white p-8 transition-all hover:-translate-y-1 hover:border-stamp hover:shadow-card-lg">
       <div className="mb-3 text-[.78rem] font-bold uppercase tracking-[.1em]" style={{ color: accent }}>
         {plan.name}
       </div>
       {plan.priceCents === null ? (
-        <div className="font-serif text-[2rem] font-bold leading-none text-navy">Custom Quote</div>
+        <div className="font-serif text-[2rem] font-bold leading-none text-ink">Custom Quote</div>
       ) : (
-        <div className="font-serif text-[2.8rem] font-bold leading-none text-navy">
-          <span className="align-super text-[1.2rem] font-normal text-slate-400">$</span>
+        <div className="font-serif text-[2.8rem] font-bold leading-none text-ink">
+          <span className="align-super text-[1.2rem] font-normal text-ink-faint">$</span>
           {formatPrice(plan.priceCents).replace("$", "")}
         </div>
       )}
-      <div className="mb-5 mt-[6px] text-[.8rem] font-light text-slate-400">{plan.cadence}</div>
-      <p className="mb-5 text-[.85rem] font-light leading-[1.6] text-slate-500">{plan.description}</p>
-      <div className="my-5 h-px bg-slate-100" />
+      <div className="mb-5 mt-[6px] text-[.8rem] font-light text-ink-faint">{plan.cadence}</div>
+      <p className="mb-5 text-[.85rem] font-light leading-[1.6] text-ink-faint">{plan.description}</p>
+      <div className="my-5 h-px bg-rule" />
       <ul className="mb-7 flex flex-col gap-[10px]">
         {plan.features.map((feature) => (
-          <li key={feature} className="flex items-start gap-2 text-[.825rem] leading-[1.5] text-slate-600">
+          <li key={feature} className="flex items-start gap-2 text-[.825rem] leading-[1.5] text-ink">
             <span className="mt-[1px] shrink-0 text-success">✓</span>
             {feature}
           </li>
@@ -163,10 +163,10 @@ function PlanCard({ plan, accent }: { plan: PricingPlan; accent: string }) {
       </ul>
       <Link
         href={href}
-        className="block w-full rounded-brand px-4 py-[13px] text-center font-sans text-[.9rem] font-bold transition-colors"
+        className="block w-full rounded px-4 py-[13px] text-center font-sans text-[.9rem] font-bold transition-colors"
         style={
           isContact
-            ? { backgroundColor: "#0D1F3C", color: "white" }
+            ? { backgroundColor: "#14213D", color: "white" }
             : { backgroundColor: "transparent", border: `2px solid ${accent}`, color: accent }
         }
       >
@@ -189,15 +189,15 @@ export default function PricingTabs() {
         : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3";
 
   return (
-    <section id="pricing-anchor" className="scroll-mt-[68px] bg-white px-6 py-24 md:px-12">
+    <section id="pricing-anchor" className="scroll-mt-[68px] bg-paper-white px-6 py-24 md:px-12">
       <div className="mx-auto max-w-[1140px]">
-        <div className="mb-[14px] text-[.75rem] font-bold uppercase tracking-[.12em] text-teal">
+        <div className="mb-[14px] text-[.75rem] font-bold uppercase tracking-[.12em] text-stamp">
           Pricing
         </div>
-        <h2 className="mb-4 font-serif text-[clamp(2rem,4vw,3rem)] leading-[1.15] tracking-[-.02em] text-navy">
+        <h2 className="mb-4 font-serif text-[clamp(2rem,4vw,3rem)] leading-[1.15] tracking-[-.02em] text-ink">
           Pricing by entity type.
         </h2>
-        <p className="max-w-[560px] text-base font-light leading-[1.75] text-slate-500">
+        <p className="max-w-[560px] text-base font-light leading-[1.75] text-ink-faint">
           Every entity is different — so is the work. FormRight prices each
           product based on complexity, documents, and the expertise required.
           All prices are FormRight service fees plus your state&apos;s filing
@@ -205,21 +205,21 @@ export default function PricingTabs() {
         </p>
 
         {/* PBC Pricing Commitment */}
-        <div className="mt-7 flex flex-wrap items-center gap-[14px] rounded-[10px] border border-teal bg-teal-pale px-5 py-[14px]">
-          <span className="shrink-0 text-lg">✓</span>
-          <p className="text-[.83rem] leading-[1.65] text-navy">
-            <strong className="text-teal">No billing surprises.</strong> Annual
+        <div className="mt-7 flex flex-wrap items-center gap-[14px] rounded-sm border border-rule bg-paper px-5 py-[14px]">
+          <span className="shrink-0 text-lg text-stamp">✓</span>
+          <p className="text-[.83rem] leading-[1.65] text-ink">
+            <strong className="text-stamp">No billing surprises.</strong> Annual
             subscriptions renew at the price shown — we email you 30 days
             before every renewal. Cancel anytime directly from your
             dashboard. No phone call, no hoops. That&apos;s a promise.
           </p>
-          <span className="ml-auto shrink-0 whitespace-nowrap text-[.7rem] font-bold tracking-[.03em] text-teal">
+          <span className="ml-auto shrink-0 whitespace-nowrap text-[.7rem] font-bold tracking-[.03em] text-stamp">
             FormRight, PBC
           </span>
         </div>
 
         {/* Entity Type Tabs */}
-        <div className="mt-10 flex flex-wrap gap-2 border-b-2 border-slate-200">
+        <div className="mt-10 flex flex-wrap gap-2 border-b-2 border-rule">
           {FAMILIES.map((f) => {
             const isActive = f.key === activeTab;
             return (
@@ -228,8 +228,8 @@ export default function PricingTabs() {
                 onClick={() => setActiveTab(f.key)}
                 className={`-mb-[2px] flex items-center gap-[7px] rounded-t-md border-b-[3px] px-[18px] py-[10px] font-sans text-[.875rem] transition-colors ${
                   isActive
-                    ? "border-teal font-semibold text-teal"
-                    : "border-transparent font-medium text-slate-500 hover:text-slate-700"
+                    ? "border-stamp font-semibold text-stamp"
+                    : "border-transparent font-medium text-ink-faint hover:text-ink"
                 }`}
               >
                 {f.icon} {f.label}
@@ -245,7 +245,7 @@ export default function PricingTabs() {
               <div className="mb-1 text-[.8rem] font-semibold" style={{ color: family.accent }}>
                 {family.tagline}
               </div>
-              <p className="max-w-[600px] text-[.875rem] text-slate-500">{family.description}</p>
+              <p className="max-w-[600px] text-[.875rem] text-ink-faint">{family.description}</p>
             </div>
             {family.badge && (
               <div className="shrink-0 whitespace-nowrap rounded-[10px] border border-[#0EA5E9]/20 bg-[#0EA5E9]/[.08] px-4 py-[10px] text-[.8rem] font-semibold text-[#0284C7]">
@@ -274,8 +274,8 @@ export default function PricingTabs() {
         </div>
 
         {/* Add-ons (shared across all tabs) */}
-        <div className="mt-10 rounded-brand-lg bg-slate-50 p-8">
-          <div className="mb-5 text-[.85rem] font-bold uppercase tracking-[.1em] text-slate-400">
+        <div className="mt-10 rounded-sm border border-rule bg-paper p-8">
+          <div className="mb-5 text-[.85rem] font-bold uppercase tracking-[.1em] text-ink-faint">
             Add-Ons &amp; Annual Compliance — All Entity Types
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -283,36 +283,36 @@ export default function PricingTabs() {
               addon.key === "comply" ? (
                 <div
                   key={addon.key}
-                  className="relative flex items-center justify-between gap-3 rounded-xl border-2 border-teal bg-teal-pale p-5"
+                  className="relative flex items-center justify-between gap-3 rounded-sm border-2 border-stamp bg-paper-white p-5"
                 >
-                  <span className="absolute -top-[10px] left-4 rounded-full bg-teal px-[10px] py-[3px] text-[.72rem] font-bold text-white">
+                  <span className="absolute -top-[10px] left-4 rounded-full bg-stamp px-[10px] py-[3px] text-[.72rem] font-bold text-paper-white">
                     MOST POPULAR
                   </span>
                   <div>
-                    <div className="text-[.875rem] font-medium text-navy">{addon.name}</div>
-                    <div className="text-[.7rem] text-slate-400">{addon.description}</div>
+                    <div className="text-[.875rem] font-medium text-ink">{addon.name}</div>
+                    <div className="text-[.7rem] text-ink-faint">{addon.description}</div>
                   </div>
                   <div className="text-right">
-                    <div className="font-serif text-[1.2rem] font-semibold text-teal">
+                    <div className="font-serif text-[1.2rem] font-semibold text-stamp">
                       {formatPrice(addon.priceCents)}
                     </div>
-                    <div className="text-[.7rem] text-slate-400">{addon.cadence}</div>
+                    <div className="text-[.7rem] text-ink-faint">{addon.cadence}</div>
                   </div>
                 </div>
               ) : (
                 <div
                   key={addon.key}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-5"
+                  className="flex items-center justify-between gap-3 rounded-sm border border-rule bg-paper-white p-5"
                 >
                   <div>
-                    <div className="text-[.875rem] font-medium text-navy">{addon.name}</div>
-                    <div className="text-[.7rem] text-slate-400">{addon.description}</div>
+                    <div className="text-[.875rem] font-medium text-ink">{addon.name}</div>
+                    <div className="text-[.7rem] text-ink-faint">{addon.description}</div>
                   </div>
                   <div className="text-right">
-                    <div className="font-serif text-[1.2rem] font-semibold text-navy">
+                    <div className="font-serif text-[1.2rem] font-semibold text-ink">
                       {formatPrice(addon.priceCents)}
                     </div>
-                    <div className="text-[.7rem] text-slate-400">{addon.cadence}</div>
+                    <div className="text-[.7rem] text-ink-faint">{addon.cadence}</div>
                   </div>
                 </div>
               )

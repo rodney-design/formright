@@ -41,13 +41,13 @@ export default function FaqAccordion() {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   return (
-    <div id="faq-anchor" className="scroll-mt-[68px] bg-white">
+    <div id="faq-anchor" className="scroll-mt-[68px] bg-paper-white">
       <div className="mx-auto max-w-[800px] px-6 py-24 md:px-12">
         <div className="mb-12 text-center">
-          <div className="mb-[14px] text-[.75rem] font-bold uppercase tracking-[.12em] text-teal">
+          <div className="mb-[14px] text-[.75rem] font-bold uppercase tracking-[.12em] text-stamp">
             FAQ
           </div>
-          <h2 className="font-serif text-[clamp(2rem,4vw,3rem)] leading-[1.15] tracking-[-.02em] text-navy">
+          <h2 className="font-serif text-[clamp(2rem,4vw,3rem)] leading-[1.15] tracking-[-.02em] text-ink">
             Common questions.
           </h2>
         </div>
@@ -55,21 +55,21 @@ export default function FaqAccordion() {
         {FAQS.map((faq, index) => {
           const isOpen = openIndex === index;
           return (
-            <div key={faq.q} className="border-b border-slate-200 py-6">
+            <div key={faq.q} className="border-b border-rule py-6">
               <button
                 onClick={() => setOpenIndex(isOpen ? null : index)}
                 aria-expanded={isOpen}
-                className="flex w-full items-center justify-between gap-4 border-none bg-none text-left font-sans text-base font-semibold text-navy"
+                className="flex w-full items-center justify-between gap-4 border-none bg-none text-left font-sans text-base font-semibold text-ink"
               >
                 {faq.q}
                 <span
-                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-teal-pale text-base text-teal transition-transform ${isOpen ? "rotate-45" : ""}`}
+                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-paper text-base text-stamp transition-transform ${isOpen ? "rotate-45" : ""}`}
                 >
                   +
                 </span>
               </button>
               {isOpen && (
-                <div className="mt-[14px] text-[.875rem] font-light leading-[1.8] text-slate-500">
+                <div className="mt-[14px] text-[.875rem] font-light leading-[1.8] text-ink-faint">
                   {faq.a}
                 </div>
               )}

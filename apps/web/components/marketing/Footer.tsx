@@ -22,17 +22,17 @@ const ENTITY_TAGS = [
 
 export default function Footer({ isAdmin }: { isAdmin: boolean }) {
   return (
-    <footer className="bg-navy px-6 pb-8 pt-16 md:px-12">
+    <footer className="bg-ink px-6 pb-8 pt-16 md:px-12">
       <div className="mx-auto max-w-[1100px]">
         <div className="grid grid-cols-1 gap-12 border-b border-white/[.08] pb-12 md:grid-cols-[2fr_1fr_1fr_1fr]">
           <div>
-            <Logo linked={false} />
+            <Logo linked={false} onDark />
             <p className="mt-[14px] max-w-[260px] text-[.85rem] font-light leading-[1.75] text-white/40">
               Business Formation for Every Founder. LLCs · C-Corps · S-Corps ·
               Nonprofits · Sole Props · Benefit Corps · Professional Corps
             </p>
             <div className="mt-4 border-t border-white/[.08] pt-4">
-              <p className="mb-[6px] text-[.72rem] font-bold tracking-[.03em] text-teal-light">
+              <p className="mb-[6px] text-[.72rem] font-bold tracking-[.03em] text-brass-light">
                 FormRight, PBC — A Delaware Public Benefit Corporation
               </p>
               <p className="text-[.72rem] font-light leading-[1.75] text-white/35">
