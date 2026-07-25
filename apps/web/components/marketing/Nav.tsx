@@ -11,7 +11,7 @@ const NAV_LINKS = [
   { label: "FAQ", href: "/#faq-anchor" },
 ];
 
-export default function Nav() {
+export default function Nav({ isAdmin }: { isAdmin: boolean }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -32,12 +32,14 @@ export default function Nav() {
         </div>
 
         <div className="flex items-center gap-3">
-          <Link
-            href="/admin"
-            className="hidden rounded-lg border border-white/20 px-5 py-[9px] font-sans text-sm font-medium text-white/80 transition-all hover:bg-white/[.08] hover:text-white sm:inline-flex"
-          >
-            Admin
-          </Link>
+          {isAdmin && (
+            <Link
+              href="/admin"
+              className="hidden rounded-lg border border-white/20 px-5 py-[9px] font-sans text-sm font-medium text-white/80 transition-all hover:bg-white/[.08] hover:text-white sm:inline-flex"
+            >
+              Admin
+            </Link>
+          )}
           <Link
             href="/auth/login"
             className="hidden rounded-lg border border-white/20 px-5 py-[9px] font-sans text-sm font-medium text-white/80 transition-all hover:bg-white/[.08] hover:text-white sm:inline-flex"
