@@ -19,7 +19,7 @@ export default function LegalShell({
 }) {
   return (
     <div>
-      <div className="bg-navy py-8">
+      <div className="bg-ink py-8">
         <div className="mx-auto max-w-[800px] px-6 sm:px-10">
           <Link
             href="/"
@@ -33,13 +33,13 @@ export default function LegalShell({
         className="mx-auto px-6 pb-24 pt-14 sm:px-10"
         style={{ maxWidth: maxWidth ?? "800px" }}
       >
-        <div className="mb-3 text-[.72rem] font-bold uppercase tracking-[.12em] text-teal">
+        <div className="mb-3 text-[.72rem] font-bold uppercase tracking-[.12em] text-stamp">
           {tag}
         </div>
-        <h1 className="mb-2 font-serif text-[2.4rem] tracking-[-.02em] text-navy">
+        <h1 className="mb-2 font-serif text-[2.4rem] tracking-[-.02em] text-ink">
           {title}
         </h1>
-        <div className="mb-10 border-b border-slate-200 pb-6 text-[.8rem] text-slate-400">
+        <div className="mb-10 border-b border-rule pb-6 text-[.8rem] text-ink-faint">
           {dateLine}
         </div>
         {notice && (

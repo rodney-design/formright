@@ -72,10 +72,10 @@ html {
   .legal-body h2 {
     font-family: var(--font-fraunces), Georgia, serif;
     font-size: 1.25rem;
-    color: #0d1f3c;
+    color: #14213d;
     margin: 36px 0 10px;
     padding-top: 8px;
-    border-top: 1px solid #f1f5f9;
+    border-top: 1px solid #d8cfb8;
   }
   .legal-body h2:first-child {
     border-top: none;
@@ -84,12 +84,12 @@ html {
   .legal-body h3 {
     font-size: 1rem;
     font-weight: 600;
-    color: #00897b;
+    color: #a8351d;
     margin: 28px 0 8px;
   }
   .legal-body p {
     font-size: 0.9rem;
-    color: #475569;
+    color: #5b6478;
     line-height: 1.85;
     margin-bottom: 14px;
     font-weight: 300;
@@ -100,28 +100,28 @@ html {
   }
   .legal-body li {
     font-size: 0.9rem;
-    color: #475569;
+    color: #5b6478;
     line-height: 1.85;
     margin-bottom: 6px;
     font-weight: 300;
   }
   .legal-body strong {
-    color: #1e293b;
+    color: #14213d;
     font-weight: 600;
   }
   .legal-body a {
-    color: #00897b;
+    color: #a8351d;
     cursor: pointer;
     text-decoration: underline;
   }
   .legal-notice {
-    background: #e0f2f1;
-    border-left: 4px solid #00897b;
+    background: #f3eee2;
+    border-left: 4px solid #a8351d;
     border-radius: 0 8px 8px 0;
     padding: 14px 18px;
     margin: 20px 0;
     font-size: 0.875rem;
-    color: #00897b;
+    color: #832712;
     font-weight: 500;
   }
   .legal-warning {

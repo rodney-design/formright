@@ -26,7 +26,7 @@ export default function Footer({ isAdmin }: { isAdmin: boolean }) {
       <div className="mx-auto max-w-[1100px]">
         <div className="grid grid-cols-1 gap-12 border-b border-white/[.08] pb-12 md:grid-cols-[2fr_1fr_1fr_1fr]">
           <div>
-            <Logo linked={false} />
+            <Logo linked={false} onDark />
             <p className="mt-[14px] max-w-[260px] text-[.85rem] font-light leading-[1.75] text-white/40">
               Business Formation for Every Founder. LLCs · C-Corps · S-Corps ·
               Nonprofits · Sole Props · Benefit Corps · Professional Corps
