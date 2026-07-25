@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { query } from "@/lib/db";
-import { requireApiKeyFirm, ApiAuthError } from "@/lib/apiAuth";
+import { requireApiKeyFirm, ApiAuthError, RateLimitError } from "@/lib/apiAuth";
 import { entityFamily } from "@/lib/entities/entityFamily";
 import { getStateFeeForEntity } from "@/lib/entities/stateFeesTable";
 import { generateRegistrationId } from "@/lib/registrationId";
-import { seedComplianceEvents } from "@/lib/entities/complianceEvents";
+import { seedComplianceEventsForRegistration } from "@/lib/entities/complianceRulesTable";
 import { ensureStateFiling } from "@/lib/queries/stateFilings";
 import { getRegistrationsForFirm } from "@/lib/queries/registrations";
 
@@ -46,6 +46,12 @@ export async function POST(req: NextRequest) {
     firmId = await requireApiKeyFirm(req);
   } catch (err) {
     if (err instanceof ApiAuthError) return NextResponse.json({ error: err.message }, { status: 401 });
+    if (err instanceof RateLimitError) {
+      return NextResponse.json(
+        { error: "Rate limit exceeded" },
+        { status: 429, headers: { "Retry-After": String(err.retryAfterSeconds) } }
+      );
+    }
     throw err;
   }
 
@@ -100,7 +106,7 @@ export async function POST(req: NextRequest) {
     ]
   );
 
-  for (const event of seedComplianceEvents(family, new Date())) {
+  for (const event of await seedComplianceEventsForRegistration(family, data.state, new Date(), data.fiscal)) {
     await query(
       "INSERT INTO compliance_events (registration_id, event_type, due_date) VALUES ($1, $2, $3)",
       [registrationId, event.eventType, event.dueDate]
@@ -117,6 +123,12 @@ export async function GET(req: NextRequest) {
     firmId = await requireApiKeyFirm(req);
   } catch (err) {
     if (err instanceof ApiAuthError) return NextResponse.json({ error: err.message }, { status: 401 });
+    if (err instanceof RateLimitError) {
+      return NextResponse.json(
+        { error: "Rate limit exceeded" },
+        { status: 429, headers: { "Retry-After": String(err.retryAfterSeconds) } }
+      );
+    }
     throw err;
   }
 

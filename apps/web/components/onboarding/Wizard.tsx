@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useOnboardStore } from "@/lib/store/onboardStore";
+import { track } from "@/lib/analytics";
 import StepOrganization from "./StepOrganization";
 import StepMission from "./StepMission";
 import StepBoard from "./StepBoard";
@@ -21,6 +22,13 @@ const STEPS = [
 export default function Wizard() {
   const step = useOnboardStore((s) => s.step);
   const [submitting, setSubmitting] = useState(false);
+  const startTracked = useRef(false);
+
+  useEffect(() => {
+    if (startTracked.current) return;
+    startTracked.current = true;
+    track("formation_started");
+  }, []);
 
   return (
     <div className="flex max-w-6xl mx-auto min-h-[70vh] mt-8 mb-16 rounded-2xl overflow-hidden border border-gray-200 shadow-sm">

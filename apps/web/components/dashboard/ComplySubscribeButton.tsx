@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { track } from "@/lib/analytics";
 
 export default function ComplySubscribeButton() {
   const [loading, setLoading] = useState(false);
@@ -10,6 +11,7 @@ export default function ComplySubscribeButton() {
   async function subscribe() {
     setLoading(true);
     setError(null);
+    track("comply_upsell_clicked", { surface: "dashboard_billing" });
     try {
       const res = await fetch("/api/subscriptions/comply/checkout", { method: "POST" });
       const json = await res.json();

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 import { requireFirmAdmin, countActiveFirmMembers } from "@/lib/queries/firms";
+import { FIRM_SEAT_PRICE_CENTS } from "@/lib/entities/pricing";
 
 export const runtime = "nodejs";
 
@@ -9,12 +10,6 @@ export const runtime = "nodejs";
 // self-serve — firms are onboarded by staff via /admin/firms), *managing*
 // the resulting seat subscription is self-service from the firm dashboard
 // once the firm exists.
-//
-// FIRM_SEAT_PRICE_CENTS is intentionally not hardcoded — no verified
-// per-seat price exists in the build-order doc or pricing.ts (those are
-// per-formation Pro-tier prices, a different monetization axis). Set it via
-// env once the business has a real number; until then this endpoint errors
-// instead of charging an invented figure.
 export async function POST(req: NextRequest) {
   let admin;
   try {
@@ -23,14 +18,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const seatPriceCents = process.env.FIRM_SEAT_PRICE_CENTS ? Number(process.env.FIRM_SEAT_PRICE_CENTS) : null;
-  if (!seatPriceCents) {
-    return NextResponse.json(
-      { error: "Per-seat pricing isn't configured yet (FIRM_SEAT_PRICE_CENTS) — contact FormRight sales." },
-      { status: 500 }
-    );
-  }
-
+  const seatPriceCents = FIRM_SEAT_PRICE_CENTS;
   const seats = await countActiveFirmMembers(admin.membership.firm.id);
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? req.nextUrl.origin;
   const stripe = getStripe();

@@ -188,3 +188,14 @@ export function getPlansForEntity(family: EntityFamily): PricingPlan[] {
 export function getPlan(family: EntityFamily, planKey: string): PricingPlan | undefined {
   return getPlansForEntity(family).find((p) => p.key === planKey);
 }
+
+// FormRight Pro per-seat billing (System 4 — B2B API hardening). Previously
+// this had no default at all: /api/subscriptions/pro/checkout 500'd until a
+// human set FIRM_SEAT_PRICE_CENTS, deliberately, because no verified
+// per-seat number existed. $29.99/mo/seat is a real default now so the
+// endpoint works out of the box — override via env for the actual go-to-market
+// price once that's decided.
+export const FIRM_SEAT_PRICE_CENTS = parseInt(
+  process.env.FIRM_SEAT_PRICE_CENTS || "2999",
+  10
+);

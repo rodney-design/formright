@@ -44,6 +44,7 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   annual_report: "Annual Report",
   benefit_report: "Annual Benefit Report",
   "2553_deadline": "IRS Form 2553 (S-Corp Election) Deadline",
+  "990n": "IRS Form 990-N (e-Postcard)",
 };
 
 export async function sendComplianceReminderEmail(
@@ -77,11 +78,15 @@ export async function sendRegistrationConfirmationEmail(
 ): Promise<void> {
   ensureInitialized();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  // Comply upsell CTA (System 1b) — links back to /onboard/success, which
+  // renders the same ComplyUpsellCard the founder saw right after checkout,
+  // rather than a separate GET-triggers-a-charge endpoint.
+  const complyUrl = `${appUrl}/onboard/success?registration=${registrationId}`;
   await sgMail.send({
     to,
     from: fromAddress(),
     subject: `Your FormRight Registration — ${orgName}`,
-    text: `Thanks for choosing FormRight! Your registration ${registrationId} for ${orgName} has been received and payment confirmed. Track its status in your dashboard: ${appUrl}/dashboard`,
-    html: `<p>Thanks for choosing FormRight! Your registration <strong>${registrationId}</strong> for <strong>${orgName}</strong> has been received and payment confirmed.</p><p>Track its status in your <a href="${appUrl}/dashboard">dashboard</a>.</p>`,
+    text: `Thanks for choosing FormRight! Your registration ${registrationId} for ${orgName} has been received and payment confirmed. Track its status in your dashboard: ${appUrl}/dashboard\n\nDon't miss a deadline — add FormRight Comply for automatic compliance reminders: ${complyUrl}`,
+    html: `<p>Thanks for choosing FormRight! Your registration <strong>${registrationId}</strong> for <strong>${orgName}</strong> has been received and payment confirmed.</p><p>Track its status in your <a href="${appUrl}/dashboard">dashboard</a>.</p><p style="margin-top:24px;padding:16px;border:1px solid #00897B;border-radius:8px;"><strong>Don't miss your first compliance deadline.</strong><br/>FormRight Comply tracks your annual report and IRS deadlines automatically, with reminders 90/60/30 days out.</p><p><a href="${complyUrl}" style="display:inline-block;background:#00897B;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600;">Add FormRight Comply — $149/yr</a></p>`,
   });
 }

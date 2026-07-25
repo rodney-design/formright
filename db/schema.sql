@@ -196,3 +196,28 @@ CREATE TABLE registered_agent_orders (
 
 CREATE INDEX idx_registered_agent_orders_registration ON registered_agent_orders(registration_id);
 CREATE INDEX idx_registered_agent_orders_status ON registered_agent_orders(status) WHERE status NOT IN ('active', 'canceled');
+
+-- Compliance rules engine ────────────────────────────────────────────────
+-- Data-driven per-state annual-report due dates, replacing the
+-- formation-anniversary approximation in seedComplianceEvents() for states
+-- with a verified rule. entity_family = 'all' is a wildcard matched when no
+-- entity-family-specific row exists for that state (see
+-- lib/entities/complianceRulesTable.ts). Only CA/DE/FL/NY/TX are seeded —
+-- see db/migrations/007_compliance_rules.sql for sourcing/citations. Every
+-- other state falls back to the existing anniversary approximation rather
+-- than a guessed rule row, same posture as state_fees.
+
+CREATE TABLE compliance_rules (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  state TEXT NOT NULL,
+  entity_family TEXT NOT NULL,  -- llc/ccorp/scorp/nonprofit/benefit/pc, or 'all'
+  event_type TEXT NOT NULL DEFAULT 'annual_report',
+  rule_type TEXT NOT NULL CHECK (rule_type IN ('fixed_date', 'anniversary_month_last_day')),
+  cadence TEXT NOT NULL CHECK (cadence IN ('annual', 'biennial')),
+  fixed_month INTEGER CHECK (fixed_month BETWEEN 1 AND 12),  -- only for rule_type = 'fixed_date'
+  fixed_day INTEGER CHECK (fixed_day BETWEEN 1 AND 31),      -- only for rule_type = 'fixed_date'
+  notes TEXT,
+  source TEXT,               -- citation for the verified figure
+  verified_at DATE NOT NULL,
+  UNIQUE (state, entity_family, event_type)
+);

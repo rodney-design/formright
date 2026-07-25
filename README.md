@@ -272,3 +272,44 @@ no spec yet.
   90/60/30-day reminders (predictive), need a scoping pass on what "assistance" means
   (BOI/FinCEN), or are explicitly exploratory with no schema (Canada/UK, marketplace). Building
   any of these now would mean guessing at requirements rather than following a spec.
+
+## MVP funnel hardening (post-audit sprint)
+
+Following a moat-validation audit that found the app "feature-complete but no-funnel" (no
+Comply conversion path, no product analytics, formation-anniversary-approximated compliance
+dates, and an unfinished B2B API), four independent systems were built:
+
+- **Comply auto-conversion funnel** — three touchpoints where there were previously zero: a
+  post-formation upsell interstitial on `/onboard/success` (`ComplyUpsellCard.tsx`), a CTA in the
+  registration confirmation email (`lib/email.ts`) linking back to that same page, and a
+  dashboard banner for signed-in founders without an active subscription
+  (`ComplyNudgeBanner.tsx`). The success-page flow runs before the founder has ever logged in, so
+  `POST /api/subscriptions/comply/checkout` now accepts a `registrationId` fallback (resolving the
+  user via the registration) alongside its existing session-based path — same public-identifier
+  trust model `/api/v1/status` already uses.
+- **Product analytics (PostHog)** — `lib/analytics.ts` (no-ops without `NEXT_PUBLIC_POSTHOG_KEY`,
+  consistent with how other optional integrations behave), initialized client-side from the root
+  layout via `PostHogInit.tsx`. Instruments the funnel: `formation_started` (wizard mount) →
+  `formation_completed` (success page) → `comply_upsell_shown` / `comply_upsell_clicked` →
+  `comply_subscribed` (billing success redirect). Client-side only for now — a server-side
+  (posthog-node) pass for events that can be missed by ad blockers is a natural follow-up, not
+  done here.
+- **Compliance rules engine** — `compliance_rules` table (`db/migrations/007_compliance_rules.sql`)
+  + `lib/entities/complianceRulesTable.ts`, replacing the formation-anniversary approximation with
+  verified per-state annual-report due dates for the 5 priority states (DE, CA, FL, NY, TX), each
+  row cited to a source in the migration. Also corrects an inaccurate assumption from an earlier
+  task spec that IRS Form 990-N was due January 31 — the actual rule (15th day of the 5th month
+  after tax-year close) is now computed from the registration's real fiscal year, landing on
+  May 15 for the calendar-year-default case. Every other state still uses the pre-existing
+  anniversary approximation rather than a guessed fixed date — same posture as `state_fees`.
+- **B2B API hardening** — `lib/rateLimit.ts` (in-memory sliding window, 100 req/min per firm by
+  default, overridable via `API_RATE_LIMIT_PER_MINUTE`) wired into `requireApiKeyFirm()`, the one
+  choke point all three `/api/v1/*` routes already share, rather than duplicated per-route or
+  built as separate Next.js middleware (which defaults to the Edge runtime and wouldn't share
+  in-process state with these Node.js route handlers). **Single-process only** — swap for a
+  Redis-backed limiter before running multiple server instances, or the effective limit becomes
+  "100 × instance count." `FIRM_SEAT_PRICE_CENTS` now defaults to $29.99/mo/seat
+  (`lib/entities/pricing.ts`) instead of hard-erroring when unset — override via env once a real
+  go-to-market number is decided. `docs/api/B2B_PARTNER_API.md` documents the actual endpoints,
+  auth header (`Authorization: Bearer`, not `X-API-Key`), and response shapes as implemented —
+  not the illustrative schema from the original task spec, which didn't match this codebase.
