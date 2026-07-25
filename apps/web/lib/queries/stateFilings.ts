@@ -11,6 +11,17 @@ export async function getStateFilingForRegistration(registrationId: string): Pro
   return result.rows[0] ?? null;
 }
 
+export async function getStateFilingByProviderFilingId(
+  provider: string,
+  providerFilingId: string
+): Promise<StateFiling | null> {
+  const result = await query<StateFiling>(
+    "SELECT * FROM state_filings WHERE provider = $1 AND provider_filing_id = $2 LIMIT 1",
+    [provider, providerFilingId]
+  );
+  return result.rows[0] ?? null;
+}
+
 // Called when a registration's payment succeeds (build-order doc §Phase 3:
 // "on registration creation" for the row to track — payment success is the
 // point at which we actually know filing needs to happen, mirroring when
@@ -29,6 +40,8 @@ export interface StateFilingUpdate {
   filingStatus?: FilingStatus;
   stateConfirmationId?: string;
   stampedDocS3Key?: string;
+  provider?: string;
+  providerFilingId?: string;
 }
 
 export async function updateStateFiling(id: string, update: StateFilingUpdate): Promise<StateFiling | null> {
@@ -50,6 +63,14 @@ export async function updateStateFiling(id: string, update: StateFilingUpdate): 
   if (update.stampedDocS3Key !== undefined) {
     sets.push(`stamped_doc_s3_key = $${i++}`);
     values.push(update.stampedDocS3Key);
+  }
+  if (update.provider !== undefined) {
+    sets.push(`provider = $${i++}`);
+    values.push(update.provider);
+  }
+  if (update.providerFilingId !== undefined) {
+    sets.push(`provider_filing_id = $${i++}`);
+    values.push(update.providerFilingId);
   }
   if (sets.length === 0) return null;
 

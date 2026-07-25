@@ -10,6 +10,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const queryMock = vi.fn();
 const constructEventMock = vi.fn();
 const ensureStateFilingMock = vi.fn();
+const submitStateFilingToProviderMock = vi.fn();
 const ensureRegisteredAgentOrderMock = vi.fn();
 const sendRegistrationConfirmationEmailMock = vi.fn();
 const captureExceptionMock = vi.fn();
@@ -22,6 +23,7 @@ vi.mock("@/lib/email", () => ({
   sendRegistrationConfirmationEmail: sendRegistrationConfirmationEmailMock,
 }));
 vi.mock("@/lib/queries/stateFilings", () => ({ ensureStateFiling: ensureStateFilingMock }));
+vi.mock("@/lib/state-filing/submit", () => ({ submitStateFilingToProvider: submitStateFilingToProviderMock }));
 vi.mock("@/lib/queries/registeredAgent", () => ({ ensureRegisteredAgentOrder: ensureRegisteredAgentOrderMock }));
 vi.mock("@/lib/queries/firmSubscriptions", () => ({ upsertFirmSubscription: vi.fn() }));
 vi.mock("@sentry/nextjs", () => ({ captureException: captureExceptionMock }));

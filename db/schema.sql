@@ -104,8 +104,12 @@ CREATE TABLE state_filings (
   state_confirmation_id TEXT,
   stamped_doc_s3_key TEXT,
   submitted_at TIMESTAMPTZ,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  provider TEXT NOT NULL DEFAULT 'manual',  -- 'manual' (staff worksheet) or a vendor name, e.g. 'fileforms'
+  provider_filing_id TEXT                   -- vendor's filing ID, when provider != 'manual'
 );
+
+CREATE INDEX idx_state_filings_provider ON state_filings(provider, provider_filing_id) WHERE provider != 'manual';
 
 CREATE TABLE state_fees (
   state TEXT NOT NULL,

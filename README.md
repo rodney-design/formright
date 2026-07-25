@@ -163,6 +163,22 @@ Given that, Phase 3 is built as **manual filing status tracking**, not automated
 - **If a state opens a real filing API later**, or FormRight decides to build portal automation,
   swap the manual step in `lib/state-filing/` for a real submission client — the `state_filings`
   table and status flow underneath don't need to change.
+- **Prototype vendor-filing seam (`lib/state-filing/providers/`, `db/migrations/006_filing_provider.sql`).**
+  Still no state exposes a direct filing API, but third-party filers (FileForms, doola, ...)
+  operate as approved filers and expose *their own* filing operations as a REST API + webhooks.
+  `getFilingProvider(state)` in `lib/state-filing/providers/index.ts` returns a configured vendor
+  client (currently `fileforms.ts`) or `null`; `submitStateFilingToProvider()`
+  (`lib/state-filing/submit.ts`) is called right after `ensureStateFiling()` in the Stripe webhook,
+  isolated in its own try/catch so a vendor outage can't block payment processing. `state_filings`
+  gained `provider` (defaults to `'manual'`, the existing worksheet flow) and `provider_filing_id`
+  columns. `POST /api/webhooks/fileforms` receives status callbacks and re-hosts the stamped
+  certificate in Supabase Storage. **This is a prototype, not a verified integration**: FileForms's
+  actual endpoint paths, request/response field names, and webhook header names in
+  `fileforms.ts` are reconstructed from public marketing pages (direct fetches to their docs were
+  blocked from this sandbox) — confirm every one against a real sandbox account/API reference
+  before pointing this at production, the same way `state_fees` rows were deliberately left
+  unseeded rather than guessed. No `FILEFORMS_API_KEY` is set anywhere, so today this seam is a
+  no-op and every filing still goes through the manual worksheet.
 
 ## Registered agent service (Northwest Registered Agent)
 
