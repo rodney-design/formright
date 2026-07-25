@@ -224,7 +224,12 @@ export async function seedComplianceEventsForRegistration(
 ): Promise<ComplianceEventSeed[]> {
   const events = seedComplianceEvents(family, formedAt);
 
-  const rule = await getComplianceRule(state, family);
+  // Sole proprietorships aren't a registered entity with the state — there's
+  // no annual report/renewal to have a deadline for, which is why
+  // seedComplianceEvents() above already returns no events for "sole". Skip
+  // the rule lookup entirely for this family so a state's 'all' wildcard row
+  // (matched by every OTHER family) can't incorrectly inject one anyway.
+  const rule = family === "sole" ? null : await getComplianceRule(state, family);
   if (rule) {
     const dueDate = calculateAnnualReportDueDate(rule, formedAt, fiscalYearLabel);
     const idx = events.findIndex((e) => e.eventType === "annual_report");

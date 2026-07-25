@@ -258,4 +258,29 @@ describe("seedComplianceEventsForRegistration — end-to-end with a real state n
     const events = await seedComplianceEventsForRegistration("llc", "South Carolina", new Date(2026, 0, 10));
     expect(events.find((e) => e.eventType === "annual_report")).toBeUndefined();
   });
+
+  // Regression: sole proprietorships aren't a registered entity with the
+  // state, so seedComplianceEvents() deliberately seeds no annual_report
+  // event for "sole" — but this override function used to query
+  // compliance_rules regardless of family, so a state's 'all' wildcard row
+  // (e.g. Georgia/Delaware/California) would incorrectly inject one anyway.
+  it("never generates an annual_report event for a sole proprietorship, even in a state with an 'all' rule", async () => {
+    queryMock.mockResolvedValue({
+      rows: [
+        {
+          not_required: false,
+          rule_type: "fixed_date",
+          cadence: "annual",
+          fixed_month: 4,
+          fixed_day: 1,
+          offset_months: null,
+          offset_day: null,
+          entity_family: "all",
+        },
+      ],
+    });
+    const events = await seedComplianceEventsForRegistration("sole", "Georgia", new Date(2026, 0, 10));
+    expect(events.find((e) => e.eventType === "annual_report")).toBeUndefined();
+    expect(queryMock).not.toHaveBeenCalled();
+  });
 });
