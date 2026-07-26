@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>FormRight — Business Formation for Every Founder</title>
+<meta name="description" content="FormRight is a business formation platform for LLCs, C-Corps, S-Corps, Nonprofits, Sole Props, Benefit Corps, and Professional Corps — launching soon." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --paper: #F3EEE2;
+    --paper-white: #FAF7EF;
+    --ink: #14213D;
+    --ink-light: #2A3B5C;
+    --ink-faint: #5B6478;
+    --stamp: #A8351D;
+    --stamp-dark: #832712;
+    --brass: #B8892E;
+    --brass-light: #DDBE5A;
+    --rule: #D8CFB8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Outfit', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .serif { font-family: 'Fraunces', Georgia, serif; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+  /* subtle ledger-line background texture on the hero */
+  .ledger {
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0px, transparent 31px, rgba(20,33,61,.045) 32px
+    );
+  }
+
+  header.site {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 24px 0;
+  }
+  .logo {
+    font-family: 'Fraunces', Georgia, serif;
+    font-weight: 600; font-size: 1.35rem; color: var(--ink);
+    letter-spacing: -.01em;
+  }
+  .logo .dot { color: var(--stamp); }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 10px;
+    font-size: .74rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .14em; color: var(--stamp);
+    margin-bottom: 22px;
+  }
+  .badge .line { width: 30px; height: 1px; background: rgba(168,53,29,.4); }
+
+  .hero {
+    padding: 48px 0 72px;
+  }
+  .hero h1 {
+    font-size: clamp(2.4rem, 5.4vw, 3.85rem);
+    line-height: 1.1; letter-spacing: -.02em; margin: 0 0 22px;
+    max-width: 780px;
+  }
+  .hero h1 em { color: var(--stamp); font-style: italic; }
+  .hero p.lede {
+    font-weight: 300; font-size: 1.08rem; line-height: 1.75;
+    color: var(--ink-faint); max-width: 540px; margin: 0 0 34px;
+  }
+
+  .entity-strip {
+    display: flex; flex-wrap: wrap; gap: 6px 16px;
+    border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
+    padding: 16px 0; margin-bottom: 36px;
+    font-family: 'Outfit', monospace; font-size: .72rem;
+    text-transform: uppercase; letter-spacing: .06em; color: var(--ink-faint);
+  }
+  .entity-strip span.sep { color: var(--rule); margin-left: 16px; }
+
+  .cta-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+  .btn-primary {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--stamp); color: var(--paper-white);
+    padding: 15px 34px; border-radius: 6px; font-weight: 700; font-size: 1rem;
+    text-decoration: none; transition: transform .15s, background .15s;
+  }
+  .btn-primary:hover { background: var(--stamp-dark); transform: translateY(-2px); }
+  .cta-note { font-size: .82rem; color: var(--ink-faint); }
+
+  section.entities {
+    background: var(--paper-white);
+    padding: 64px 0 72px;
+    border-top: 1px solid var(--rule);
+  }
+  .eyebrow {
+    font-size: .75rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .12em; color: var(--stamp); margin-bottom: 14px;
+  }
+  .entities h2 {
+    font-size: clamp(1.8rem, 3.6vw, 2.6rem); margin: 0 0 14px; letter-spacing: -.02em;
+    max-width: 640px;
+  }
+  .entities > .wrap > p {
+    max-width: 560px; color: var(--ink-faint); font-weight: 300;
+    line-height: 1.75; margin: 0 0 44px;
+  }
+  .grid {
+    display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  }
+  .card {
+    background: #fff; border: 1px solid var(--rule); border-top: 3px solid var(--accent, var(--brass));
+    border-radius: 3px; padding: 22px;
+  }
+  .card .icon { font-size: 24px; margin-bottom: 10px; }
+  .card .tag {
+    display: inline-block; font-family: monospace; font-size: .65rem;
+    font-weight: 700; text-transform: uppercase; letter-spacing: .1em;
+    padding: 2px 8px; border-radius: 4px; color: var(--accent, var(--brass));
+    background: color-mix(in srgb, var(--accent, var(--brass)) 12%, transparent);
+    margin-bottom: 10px;
+  }
+  .card h3 { font-size: .95rem; margin: 0 0 6px; }
+  .card p { font-size: .82rem; color: var(--ink-faint); font-weight: 300; line-height: 1.65; margin: 0; }
+
+  footer.site {
+    background: var(--ink); color: rgba(255,255,255,.55);
+    padding: 44px 0 28px; margin-top: 0;
+  }
+  footer.site .brand { color: #fff; font-family: 'Fraunces', serif; font-size: 1.2rem; margin-bottom: 10px; }
+  footer.site p { font-size: .82rem; line-height: 1.7; max-width: 440px; margin: 0 0 16px; }
+  footer.site .pbc { color: var(--brass-light); font-size: .72rem; font-weight: 700; margin-bottom: 4px; }
+  footer.site .legal {
+    border-top: 1px solid rgba(255,255,255,.08); margin-top: 28px; padding-top: 18px;
+    font-size: .74rem; color: rgba(255,255,255,.35);
+    display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px;
+  }
+  a.contact-link { color: inherit; text-decoration: underline; }
+
+  @media (max-width: 640px) {
+    header.site { flex-direction: column; align-items: flex-start; gap: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="ledger">
+  <div class="wrap">
+    <header class="site">
+      <div class="logo">Form<span class="dot">•</span>Right</div>
+      <div class="cta-note">Launching August 2026</div>
+    </header>
+
+    <section class="hero">
+      <div class="badge"><span class="line"></span>Coming Soon</div>
+      <h1 class="serif">Business formation for <em>every founder.</em></h1>
+      <p class="lede">
+        FormRight is a business formation platform covering every U.S. entity
+        type — LLCs, C-Corps, S-Corps, Nonprofits, Sole Props, Benefit Corps,
+        and Professional Corps, across all 50 states. We're putting the
+        finishing touches on the full platform now.
+      </p>
+
+      <div class="entity-strip">
+        <span>LLC</span><span class="sep">/</span>
+        <span>C-Corp</span><span class="sep">/</span>
+        <span>S-Corp</span><span class="sep">/</span>
+        <span>Nonprofit 501(c)(3)</span><span class="sep">/</span>
+        <span>Sole Proprietorship</span><span class="sep">/</span>
+        <span>Benefit Corp</span><span class="sep">/</span>
+        <span>Professional Corp</span>
+      </div>
+
+      <div class="cta-row">
+        <a class="btn-primary" href="mailto:hello@formright.com?subject=Notify%20me%20at%20launch">
+          Get Notified at Launch →
+        </a>
+        <span class="cta-note">No spam — one email when we're live.</span>
+      </div>
+    </section>
+  </div>
+</div>
+
+<section class="entities">
+  <div class="wrap">
+    <div class="eyebrow">What We'll Support</div>
+    <h2 class="serif">Every U.S. Business Entity Type</h2>
+    <p>Seven entity types, all 50 states. Our nonprofit heritage is a differentiator, not a constraint.</p>
+
+    <div class="grid">
+      <div class="card" style="--accent:#00897B">
+        <div class="icon">🏢</div>
+        <div class="tag">LLC</div>
+        <h3>Limited Liability Company</h3>
+        <p>The most flexible U.S. entity — ideal for freelancers, small businesses, and startups seeking simplicity with liability protection.</p>
+      </div>
+      <div class="card" style="--accent:#7C3AED">
+        <div class="icon">🚀</div>
+        <div class="tag">C-Corp</div>
+        <h3>C-Corporation</h3>
+        <p>Built for venture-backed startups — Delaware defaults, investor-ready documents, and cap table starter.</p>
+      </div>
+      <div class="card" style="--accent:#F9A825">
+        <div class="icon">💼</div>
+        <div class="tag">S-Corp</div>
+        <h3>S-Corporation</h3>
+        <p>Pass-through taxation without self-employment tax on distributions — for profitable small business owners.</p>
+      </div>
+      <div class="card" style="--accent:#0EA5E9">
+        <div class="icon">🌱</div>
+        <div class="tag">Nonprofit</div>
+        <h3>Nonprofit 501(c)(3)</h3>
+        <p>Our heritage. Best-in-class support for charitable organizations, foundations, and mission-driven entities.</p>
+      </div>
+      <div class="card" style="--accent:#F97316">
+        <div class="icon">👤</div>
+        <div class="tag">Sole Prop</div>
+        <h3>Sole Proprietorship</h3>
+        <p>The simplest structure for independent contractors and freelancers, with DBA registration guidance.</p>
+      </div>
+      <div class="card" style="--accent:#16A34A">
+        <div class="icon">🌍</div>
+        <div class="tag">Benefit</div>
+        <h3>Benefit Corporation</h3>
+        <p>Mission-driven for-profits with legal accountability to social purpose. FormRight is one itself.</p>
+      </div>
+      <div class="card" style="--accent:#6366F1">
+        <div class="icon">⚖️</div>
+        <div class="tag">Prof Corp</div>
+        <h3>Professional Corporation (PC/PLLC)</h3>
+        <p>For licensed professionals — doctors, lawyers, accountants, architects — with licensing compliance guidance.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="site">
+  <div class="wrap">
+    <div class="brand">FormRight</div>
+    <p>Business Formation for Every Founder. LLCs · C-Corps · S-Corps · Nonprofits · Sole Props · Benefit Corps · Professional Corps</p>
+    <div class="pbc">FormRight, PBC — A Delaware Public Benefit Corporation</div>
+    <p style="max-width:480px;">
+      Our benefit purpose: to make business formation accessible, accurate,
+      and affordable for every founder — with particular commitment to
+      nonprofit and mission-driven organizations.
+    </p>
+    <p>Questions? <a class="contact-link" href="mailto:hello@formright.com">hello@formright.com</a></p>
+    <div class="legal">
+      <span>© 2026 FormRight, PBC. All rights reserved.</span>
+      <span>Not a law firm · Document preparation service</span>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
