@@ -84,8 +84,17 @@ None of this can be provisioned from an agent sandbox; it needs real accounts/cr
 1. **Supabase project** — Postgres (`DATABASE_URL`) + a private Storage bucket
    (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET`). Load
    `db/schema.sql` into it.
-2. **Vercel project** — import the repo, root directory `apps/web`, every var from
-   `.env.example` set in Production + Preview.
+2. **Vercel project** (`formrightcomingsoon`) — import the repo, and set in
+   Build & Deployment settings:
+   - **Root Directory**: `apps/web` (the only app in this monorepo).
+   - **Node.js Version**: `20.x` (no `.nvmrc`/`engines` pin in the repo, but
+     `@types/node` is `^20` and that's the safe match for Next 14.2.35).
+   - **Ignored Build Step**: "Only build if there are changes in a folder" →
+     `apps/web` (add `db/schema.sql` too if schema changes should also trigger
+     a rebuild). Avoids burning builds on `docs/`-only commits.
+   - Concurrent Builds / Build Machine / Deployment Checks / Rolling Releases:
+     Pro-plan extras, leave at defaults — not needed for launch.
+   - Every var from `.env.example` set in Production + Preview.
 3. **Stripe** — live/test keys, and a webhook endpoint registered at
    `/api/webhooks/stripe` subscribed to `payment_intent.succeeded`,
    `payment_intent.payment_failed`, `checkout.session.completed`,
