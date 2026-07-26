@@ -83,14 +83,21 @@
   .entity-strip span.sep { color: var(--rule); margin-left: 16px; }
 
   .cta-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+  .notify-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .notify-form input[type="email"] {
+    font: inherit; font-size: 1rem; padding: 14px 18px; border-radius: 6px;
+    border: 1px solid var(--rule); min-width: 260px; background: var(--paper-white);
+    color: var(--ink);
+  }
   .btn-primary {
     display: inline-flex; align-items: center; gap: 8px;
     background: var(--stamp); color: var(--paper-white);
-    padding: 15px 34px; border-radius: 6px; font-weight: 700; font-size: 1rem;
-    text-decoration: none; transition: transform .15s, background .15s;
+    padding: 15px 34px; border-radius: 6px; border: none; font-weight: 700; font-size: 1rem;
+    text-decoration: none; cursor: pointer; transition: transform .15s, background .15s;
   }
   .btn-primary:hover { background: var(--stamp-dark); transform: translateY(-2px); }
   .cta-note { font-size: .82rem; color: var(--ink-faint); }
+  .hidden { display: none; }
 
   section.entities {
     background: var(--paper-white);
@@ -175,10 +182,13 @@
         <span>Professional Corp</span>
       </div>
 
+      <form class="notify-form" name="launch-notify" method="POST" data-netlify="true" netlify-honeypot="bot-field" action="/thanks.html">
+        <input type="hidden" name="form-name" value="launch-notify" />
+        <p class="hidden"><label>Don't fill this out if you're human: <input name="bot-field" /></label></p>
+        <input type="email" name="email" placeholder="you@company.com" required aria-label="Email address" />
+        <button type="submit" class="btn-primary">Get Notified at Launch →</button>
+      </form>
       <div class="cta-row">
-        <a class="btn-primary" href="mailto:hello@formright.com?subject=Notify%20me%20at%20launch">
-          Get Notified at Launch →
-        </a>
         <span class="cta-note">No spam — one email when we're live.</span>
       </div>
     </section>
@@ -248,7 +258,7 @@
       and affordable for every founder — with particular commitment to
       nonprofit and mission-driven organizations.
     </p>
-    <p>Questions? <a class="contact-link" href="mailto:hello@formright.com">hello@formright.com</a></p>
+    <p>Questions? <a class="contact-link" href="mailto:hello@formright.org">hello@formright.org</a></p>
     <div class="legal">
       <span>© 2026 FormRight, PBC. All rights reserved.</span>
       <span>Not a law firm · Document preparation service</span>
