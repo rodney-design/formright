@@ -47,7 +47,7 @@ See `.env.example`. All of these are required for the app to function; nothing i
 | `NEXT_PUBLIC_APP_URL` | Absolute base URL used in emails and redirects |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Supabase Storage access for the document vault (Phase 2). The service-role key bypasses row-level security for server-side access to a private bucket — never expose it to the client. |
 | `SUPABASE_STORAGE_BUCKET` | Bucket generated documents are uploaded to |
-| `CRON_SECRET` | Shared secret the compliance-reminder cron route checks against the `Authorization: Bearer` header Vercel Cron sends |
+| `CRON_SECRET` | Shared secret the compliance-reminder cron route checks against the `Authorization: Bearer` header the Netlify Scheduled Function sends |
 
 ### Promoting a user to admin
 
@@ -116,9 +116,10 @@ db/
   registration creation, entity-type-driven (e.g. IRS Form 2553 election deadline for S-Corps,
   annual benefit report for Benefit Corps). Due dates are approximated from the formation date;
   state-specific fixed-calendar-date rules aren't modeled yet.
-- **Reminder cron** — `GET /api/cron/compliance-reminders`, scheduled daily via `vercel.json`,
-  secret-protected via `CRON_SECRET`. Emails via SendGrid when an event is exactly 90, 60, or 30
-  days from its due date, then marks `reminded_at`.
+- **Reminder cron** — `GET /api/cron/compliance-reminders`, secret-protected via `CRON_SECRET`,
+  triggered daily by the Netlify Scheduled Function in `netlify/functions/compliance-reminders-cron.ts`.
+  Emails via SendGrid when an event is exactly 90, 60, or 30 days from its due date, then marks
+  `reminded_at`.
 - **Registered agent service is not implemented.** Per the build-order doc, this is gated on a
   business decision (integrate with Northwest Registered Agent's API vs. build in-house
   fulfillment) rather than a pure build task — the `subscriptions.plan` CHECK constraint already

@@ -49,6 +49,17 @@ not a duplicate of it.
   `min-h-screen` stacked on top of the Wizard component's own `min-h-[70vh]`, pushing the
   page to 932px against a 900px viewport. Removed; page now sizes to the viewport exactly.
 
+## Deployment platform: Netlify, not Vercel
+
+Switched off Vercel entirely (2026-07-26). `netlify.toml` at the repo root points
+Netlify at `apps/web` with `@netlify/plugin-nextjs`. The old `vercel.json` cron
+config is gone — replaced by `apps/web/netlify/functions/compliance-reminders-cron.ts`,
+a Netlify Scheduled Function (`0 13 * * *`, same schedule) that calls the existing
+`/api/cron/compliance-reminders` route with the `CRON_SECRET` bearer token itself,
+since Netlify has no auto-injected-header equivalent to Vercel Cron. No other
+Vercel-specific code existed in the app (no `@vercel/*` packages, no edge
+middleware, no ISR/ image-optimization config to migrate) — this was a clean swap.
+
 ## Storage backend: Supabase, not AWS
 
 `lib/storage.ts` (not `lib/s3.ts` — that file is gone) uses `@supabase/supabase-js`
@@ -84,17 +95,19 @@ None of this can be provisioned from an agent sandbox; it needs real accounts/cr
 1. **Supabase project** — Postgres (`DATABASE_URL`) + a private Storage bucket
    (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET`). Load
    `db/schema.sql` into it.
-2. **Vercel project** (`formrightcomingsoon`) — import the repo, and set in
-   Build & Deployment settings:
-   - **Root Directory**: `apps/web` (the only app in this monorepo).
+2. **Netlify project** (host is Netlify, not Vercel — see "Deployment platform"
+   below) — import the repo:
+   - **Base directory**: `apps/web` (the only app in this monorepo). `netlify.toml`
+     at the repo root already sets this, plus `@netlify/plugin-nextjs`, so the
+     Netlify UI's own base-directory field should just confirm/match it.
    - **Node.js Version**: `20.x` (no `.nvmrc`/`engines` pin in the repo, but
      `@types/node` is `^20` and that's the safe match for Next 14.2.35).
-   - **Ignored Build Step**: "Only build if there are changes in a folder" →
-     `apps/web` (add `db/schema.sql` too if schema changes should also trigger
-     a rebuild). Avoids burning builds on `docs/`-only commits.
-   - Concurrent Builds / Build Machine / Deployment Checks / Rolling Releases:
-     Pro-plan extras, leave at defaults — not needed for launch.
-   - Every var from `.env.example` set in Production + Preview.
+   - Every var from `.env.example` set for Production + Deploy Previews (Netlify's
+     equivalent of Vercel's Production/Preview split), same list as before.
+   - The `formrightcomingsoon` placeholder ("coming soon" page, `marketing-temp/`
+     in this repo) is a **separate** Netlify site from the main app — same repo,
+     different site with its base directory set to `marketing-temp` instead of
+     `apps/web`. Plain static HTML, no build command, no plugin needed.
 3. **Stripe** — live/test keys, and a webhook endpoint registered at
    `/api/webhooks/stripe` subscribed to `payment_intent.succeeded`,
    `payment_intent.payment_failed`, `checkout.session.completed`,
@@ -103,7 +116,9 @@ None of this can be provisioned from an agent sandbox; it needs real accounts/cr
    filtered), API key.
 5. **Anthropic API key** for the dashboard assistant feature.
 6. `JWT_SECRET` / `CRON_SECRET` — generate random strings (`openssl rand -hex 32`).
-   `CRON_SECRET` just needs to be set in Vercel — Vercel Cron sends it automatically.
+   Set `CRON_SECRET` in Netlify; the Netlify Scheduled Function in
+   `apps/web/netlify/functions/compliance-reminders-cron.ts` reads it and sends
+   it itself (there's no automatic-injection equivalent to Vercel Cron here).
 7. `SENTRY_DSN` — optional but the webhook/checkout/request-link fixes above now report
    swallowed errors to Sentry; without a DSN those reports just no-op silently.
 8. `FIRM_SEAT_PRICE_CENTS` — only if Pro-tier per-seat billing needs to be live at launch;
