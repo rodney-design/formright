@@ -70,36 +70,34 @@ troubleshooting the old Vercel setup. It should be treated as compromised — ro
 revoke it in Vercel (Settings → Tokens) regardless of whether Vercel is still used for
 anything. Not confirmed done as of this writing.
 
-## Coming-soon site is live, main app is not (as of 2026-07-26)
+## formright.org now serves the real app (cut over 2026-07-27)
 
-`formright.org` is live in production right now, but it's serving the **standalone
-coming-soon page** (`marketing-temp/index.html`, built on branch
-`claude/temp-marketing-site` by a separate session — see that branch's own commit
-for context), not the FormRight app. Concretely:
+**DNS cutover is done.** `formright.org` now points at the real Next.js app on the
+`formright-app` Netlify project, not the coming-soon page. Sequence, for reference if
+this ever needs redoing:
 
-- Netlify project name: `formright` (team: rodney-urhb1t8's team). Production branch
-  is set to `claude/temp-marketing-site`, base directory `marketing-temp`, no build
-  command — plain static HTML.
-- DNS for `formright.org` is at IONOS: `A @ → 75.2.60.5`, `CNAME www → formright.netlify.app`.
-  Existing Gmail MX/SPF/DKIM/domain-verification records were left untouched. HTTPS via
-  Let's Encrypt is provisioned and working.
-- The page's "Get Notified at Launch" button is a real `<form data-netlify="true">`
-  (Netlify Forms — no backend needed), submitting to `marketing-temp/thanks.html`.
-  Submissions land in the Netlify dashboard's **Forms** tab; no email notification is
-  configured yet (nobody gets pinged when someone signs up — has to be checked
-  manually, or set up under Forms → Form notifications → Add notification).
-- Footer contact address is `hello@formright.org` (fixed from a placeholder
-  `hello@formright.com`, a domain FormRight doesn't own) — confirm that inbox actually
-  exists in the Google Workspace tied to the domain, or create it.
-- `marketing-temp/README.md`'s "Retiring it" section still says to point the domain at
-  a Vercel deployment — stale, that whole plan is Netlify now. Needs a rewrite once the
-  real app deploy exists (see next section), since the actual next step will be moving
-  `formright.org`'s DNS from this Netlify project to whatever Netlify project ends up
-  hosting `apps/web`.
+1. Netlify only allows one project to claim a given custom domain — had to remove
+   `formright.org` / `www.formright.org` from the old `formright` project's Domain
+   management first (attempting to add it to `formright-app` before doing this gives
+   a clear "Another project is already using this domain" error, not a silent failure).
+2. Added the domain to `formright-app` → Domain management → Add a domain, then
+   followed whatever DNS records that page displayed (values can differ from what a
+   different site's setup showed previously) and updated them at IONOS.
+3. Netlify auto-provisioned a new Let's Encrypt cert for the new association.
 
-**The real Next.js app has no deployment at all right now** — the `formright` Netlify
-project above is fully consumed by the coming-soon page. Setting up the actual app
-needs a **separate, new Netlify project** — see the checklist below.
+The old `formright` Netlify project (coming-soon page, `marketing-temp/index.html` on
+branch `claude/temp-marketing-site`) **still exists** — only its custom domain
+association was removed, the project itself was not deleted. Its Netlify Forms
+submissions data (visitors who signed up via "Get Notified at Launch") is presumably
+still sitting there, unread — nobody has been pinged on new signups (no notification
+was ever configured under Forms → Form notifications). Worth checking that data via
+that project's Forms tab before it's ever decommissioned for good. Its own
+`marketing-temp/README.md` "Retiring it" section still references Vercel — stale,
+needs a rewrite whenever someone gets to actually retiring that project.
+
+Footer contact address on the retired coming-soon page was `hello@formright.org` —
+confirm that inbox exists in the Google Workspace tied to the domain, independent of
+this cutover.
 
 ## Storage backend: Supabase, not AWS
 
@@ -133,46 +131,90 @@ claim something works, run it the same way; don't infer correctness from reading
 
 None of this can be provisioned from an agent sandbox; it needs real accounts/credentials:
 
-1. **Supabase project** — Postgres (`DATABASE_URL`) + a private Storage bucket
-   (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET`). Load
-   `db/schema.sql` into it.
-2. **A new, separate Netlify project for the real app** (host is Netlify, not
-   Vercel — see "Deployment platform" above). The existing `formright` Netlify
-   project is already spoken for by the coming-soon page (see "Coming-soon site is
-   live, main app is not" above) — don't repoint it, create a second project:
-   - First, merge `claude/vercel-build-deployment-7iptur` into the default branch
-     (`claude/build-it-ntpntq`) — that's where `netlify.toml` and the scheduled
-     function currently live, and they're not on the default branch yet.
-   - Import the repo as a new Netlify project, branch = default branch.
-   - **Base directory**: `apps/web` (the only app in this monorepo). `netlify.toml`
-     at the repo root already sets this, plus `@netlify/plugin-nextjs`, so the
-     Netlify UI's own base-directory field should just confirm/match it.
-   - **Node.js Version**: `20.x` (no `.nvmrc`/`engines` pin in the repo, but
-     `@types/node` is `^20` and that's the safe match for Next 14.2.35).
-   - Every var from `.env.example` set for Production + Deploy Previews (Netlify's
-     equivalent of Vercel's Production/Preview split), same list as before, plus a
-     freshly generated `JWT_SECRET` / `CRON_SECRET` (see item 6) — don't reuse
-     whatever's set on the coming-soon project, generate new ones for this project.
-   - Once this is live and verified end-to-end (item 9 below), `formright.org`'s DNS
-     needs to move from the coming-soon Netlify project to this one.
-3. **Stripe** — live/test keys, and a webhook endpoint registered at
-   `/api/webhooks/stripe` subscribed to `payment_intent.succeeded`,
-   `payment_intent.payment_failed`, `checkout.session.completed`,
-   `customer.subscription.updated`, `customer.subscription.deleted`.
-4. **SendGrid** — verified sender identity/domain (required or mail gets blocked/spam-
-   filtered), API key.
-5. **Anthropic API key** for the dashboard assistant feature.
-6. `JWT_SECRET` / `CRON_SECRET` — generate random strings (`openssl rand -hex 32`).
-   Set `CRON_SECRET` in Netlify; the Netlify Scheduled Function in
-   `apps/web/netlify/functions/compliance-reminders-cron.ts` reads it and sends
-   it itself (there's no automatic-injection equivalent to Vercel Cron here).
+1. **Supabase project** — DONE (2026-07-27). Project `formright` (ref
+   `prmcagoivhfcgaljuryw`, `https://prmcagoivhfcgaljuryw.supabase.co`) already existed
+   with `db/schema.sql`'s tables loaded except `compliance_rules`, which was missing —
+   created it via the Supabase MCP connection, then seeded `state_fees` (8 rows) and
+   `compliance_rules` (91 rows, all six batches — `003_phase3.sql`'s state_fees INSERT
+   plus `007`-`012_compliance_rules_*.sql`) since those migrations' seed data lives
+   outside `schema.sql` (see "Known inconsistency" above). A private `documents` Storage
+   bucket already existed too, matching `lib/storage.ts`'s expected bucket name.
+   Security/performance advisors came back clean — the `rls_enabled_no_policy` INFO
+   notice on every table is expected, since the app talks to Postgres via
+   `DATABASE_URL`/the service-role key server-side, not the Supabase client from a
+   browser, so no anon/authenticated RLS policies are needed.
+   All four Supabase env vars (`DATABASE_URL`, `SUPABASE_URL`,
+   `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET`) are now set directly on the
+   `formright-app` Netlify project (see item 2) — the human provided the DB password
+   (via a dashboard password reset) and the new-format `sb_secret_...` key from
+   Settings → API in chat, since MCP can't retrieve either. **Do not put the actual
+   secret values in this file** — they live in Netlify's env var store only. If
+   `DATABASE_URL` ever needs re-deriving: dashboard → Settings → Database → Connection
+   pooling → **Transaction pooler**, port `6543` (not the direct 5432 connection —
+   Netlify functions are short-lived/serverless).
+2. **Netlify project for the real app** — DONE, including the DNS cutover (see
+   "formright.org now serves the real app" above). **`formright-app`**
+   (site id `b3a4feaa-3ba6-4b15-99d7-ee4461feb390`, team `rodney-urhb1t8`) is now live
+   at both `https://formright-app.netlify.app` and `https://formright.org`, deployed
+   from branch `claude/build-it-ntpntq` (the default branch).
+   All env vars from `.env.example` are now set: `CRON_SECRET`, `JWT_SECRET`,
+   `NEXT_PUBLIC_APP_URL` (updated 2026-07-27 to `https://formright.org` — was
+   `https://formright-app.netlify.app`; since this is a `NEXT_PUBLIC_*` var, Next.js
+   inlines every reference to it at *build* time, in server route handlers too, not
+   just client bundles — so **a fresh deploy is required** for checkout
+   success/cancel URLs and magic-link auth emails to actually use `formright.org`;
+   confirm one has run since 2026-07-27T22:39 UTC before trusting those links),
+   `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
+   `SUPABASE_STORAGE_BUCKET`, `SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL`,
+   `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`,
+   `ANTHROPIC_API_KEY`. Not set (both optional): `SENTRY_DSN`, `FIRM_SEAT_PRICE_CENTS`.
+   (Gotcha for next time: `manage-env-vars` upserts can silently not persist if
+   `newVarScopes` is a subset like `["functions","runtime"]` — always use `["all"]`.)
+   Still not independently verified: the `DATABASE_URL` connection actually works
+   end-to-end — a `psql` test from this sandbox hung indefinitely (raw Postgres TCP on
+   port 6543 isn't reachable from this sandbox, only proxied HTTPS is; same restriction
+   blocks curling `formright.org`/`formright-app.netlify.app` directly from here —
+   confirmed via the proxy status endpoint, a 403 policy denial, not a bug). Has to be
+   verified by actually using the deployed app, not from a sandbox.
+3. **Stripe** — DONE. Live-mode keys set (`STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`).
+   Webhook endpoint registered in the Stripe dashboard (Workbench → Webhooks → event
+   destination scope "Your account", not "Connected accounts" — FormRight isn't a
+   Connect/marketplace platform) pointed at
+   `https://formright-app.netlify.app/api/webhooks/stripe`, subscribed to
+   `payment_intent.succeeded`, `payment_intent.payment_failed`,
+   `checkout.session.completed`, `customer.subscription.updated`,
+   `customer.subscription.deleted`; payload style left as "Snapshot" (matches
+   `stripe.webhooks.constructEvent()` in `apps/web/app/api/webhooks/stripe/route.ts` —
+   don't switch to "Thin" event notifications, the handler doesn't support that shape).
+   `STRIPE_WEBHOOK_SECRET` set from that endpoint's signing secret.
+   **Important**: the Stripe account showed "Review in progress — 2-3 days" as of
+   2026-07-27 (dashboard → account status). Live charges may not fully process until
+   that clears — factor this into when the golden-path smoke test (item 9) can
+   actually succeed end-to-end. Also: no test-mode keys were configured alongside the
+   live ones, so any smoke test hits real money — either use a real card + refund, or
+   temporarily pull `pk_test_`/`sk_test_` keys from Stripe for testing first.
+4. **SendGrid** — DONE. Domain authentication for `formright.org` verified (5 CNAME +
+   1 TXT DMARC record added at IONOS; DMARC started at `p=none`, monitor-only — plan
+   to move to `quarantine`/`reject` after watching reports for a couple weeks). API key
+   set as `SENDGRID_API_KEY`. `SENDGRID_FROM_EMAIL=noreply@formright.org` chosen
+   deliberately separate from `hello@formright.org` (the human-facing contact address)
+   to keep automated transactional mail (magic links, confirmations) distinct.
+   Flagged but not yet addressed: SendGrid click-tracking, if ever enabled, can cause
+   corporate email gateways / Microsoft Defender "Safe Links" to pre-fetch and consume
+   single-use magic-link tokens before the real user clicks — disable click tracking
+   specifically for the magic-link email if this becomes an issue.
+5. **Anthropic API key** — DONE, set as `ANTHROPIC_API_KEY`.
+6. `JWT_SECRET` / `CRON_SECRET` — DONE, already set on `formright-app` (see item 2).
 7. `SENTRY_DSN` — optional but the webhook/checkout/request-link fixes above now report
-   swallowed errors to Sentry; without a DSN those reports just no-op silently.
+   swallowed errors to Sentry; without a DSN those reports just no-op silently. Not set
+   yet.
 8. `FIRM_SEAT_PRICE_CENTS` — only if Pro-tier per-seat billing needs to be live at launch;
-   otherwise leave unset (that one endpoint just errors until it's set).
-9. Once real credentials exist: smoke-test the golden path for real (signup → checkout →
-   webhook fires → document generates in Supabase Storage → downloads), not just against
-   dummy values.
+   otherwise leave unset (that one endpoint just errors until it's set). Not set yet.
+9. **Not started yet — the main remaining task.** Smoke-test the golden path for real
+   (signup → checkout → webhook fires → document generates in Supabase Storage →
+   downloads) against `https://formright.org` now that it's live, not just against
+   dummy values. Blocked in part on Stripe's account review clearing (item 3) and on
+   confirming a fresh deploy has run since the `NEXT_PUBLIC_APP_URL` change (item 2).
 10. Delete `origin/claude/formright-repo-clone-ga286e` on GitHub (merged twice over via
     PR #1 and #2, safe to remove — this session's git proxy can't do it, see above).
 
