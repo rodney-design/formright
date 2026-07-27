@@ -45,6 +45,7 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   benefit_report: "Annual Benefit Report",
   "2553_deadline": "IRS Form 2553 (S-Corp Election) Deadline",
   "990n": "IRS Form 990-N (e-Postcard)",
+  charitable_solicitation_renewal: "Charitable Solicitation Registration Renewal",
 };
 
 export async function sendComplianceReminderEmail(

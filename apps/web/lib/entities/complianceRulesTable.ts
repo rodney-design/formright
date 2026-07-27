@@ -41,10 +41,14 @@ export interface ComplianceRule {
 // Exact entity_family match wins; 'all' is the wildcard fallback within the
 // same state (see migration 007's comment on why most states need only one
 // row). No row for the state at all means "no verified rule" — caller falls
-// back to the anniversary approximation.
+// back to the anniversary approximation (or, for event types other than
+// annual_report, skips the event entirely — see
+// seedComplianceEventsForRegistration's charitable_solicitation_renewal
+// handling, which has no non-DB fallback to fall back to).
 export async function getComplianceRule(
   state: string,
-  family: EntityFamily
+  family: EntityFamily,
+  eventType: string = "annual_report"
 ): Promise<ComplianceRule | null> {
   const result = await query<{
     not_required: boolean;
@@ -59,10 +63,10 @@ export async function getComplianceRule(
   }>(
     `SELECT not_required, rule_type, cadence, fixed_month, fixed_day, offset_months, offset_day, year_parity, entity_family
      FROM compliance_rules
-     WHERE state = $1 AND entity_family IN ($2, 'all') AND event_type = 'annual_report'
+     WHERE state = $1 AND entity_family IN ($2, 'all') AND event_type = $3
      ORDER BY (entity_family = $2) DESC
      LIMIT 1`,
-    [state, family]
+    [state, family, eventType]
   );
   const row = result.rows[0];
   if (!row) return null;
@@ -264,6 +268,23 @@ export async function seedComplianceEventsForRegistration(
       eventType: "990n",
       dueDate: calculateForm990NDueDate(fiscalYearLabel, formedAt),
     });
+
+    // Charitable solicitation registration is a separate obligation from the
+    // annual_report row above — most states require a nonprofit to register
+    // (and renew) before soliciting donations from their residents. Only
+    // seeded for states with a verified compliance_rules row (see
+    // 016_charitable_solicitation_rules.sql); every other state gets no
+    // event here at all rather than a guessed one — there's no
+    // formation-anniversary approximation to fall back to the way
+    // annual_report has, since this obligation doesn't exist federally or
+    // uniformly enough to guess a default cadence.
+    const solicitationRule = await getComplianceRule(state, family, "charitable_solicitation_renewal");
+    if (solicitationRule && !solicitationRule.notRequired) {
+      const dueDate = calculateAnnualReportDueDate(solicitationRule, formedAt, fiscalYearLabel);
+      if (dueDate) {
+        events.push({ eventType: "charitable_solicitation_renewal", dueDate });
+      }
+    }
   }
 
   return events;

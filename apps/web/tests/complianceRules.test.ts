@@ -206,7 +206,7 @@ describe("getComplianceRule — DB lookup uses full state names", () => {
   it("queries with the full state name, not a two-letter code", async () => {
     queryMock.mockResolvedValue({ rows: [] });
     await getComplianceRule("Delaware", "llc");
-    expect(queryMock).toHaveBeenCalledWith(expect.any(String), ["Delaware", "llc"]);
+    expect(queryMock).toHaveBeenCalledWith(expect.any(String), ["Delaware", "llc", "annual_report"]);
   });
 
   it("returns the parsed rule when a row matches the full state name", async () => {
@@ -333,5 +333,76 @@ describe("seedComplianceEventsForRegistration — end-to-end with a real state n
     const events = await seedComplianceEventsForRegistration("sole", "Georgia", new Date(2026, 0, 10));
     expect(events.find((e) => e.eventType === "annual_report")).toBeUndefined();
     expect(queryMock).not.toHaveBeenCalled();
+  });
+});
+
+// getComplianceRule() now takes an eventType (default "annual_report") so
+// the same compliance_rules table/query shape can serve a second obligation
+// for nonprofits — charitable solicitation registration renewal — without a
+// new table. See db/migrations/016_charitable_solicitation_rules.sql.
+describe("seedComplianceEventsForRegistration — charitable_solicitation_renewal (nonprofit only)", () => {
+  beforeEach(() => {
+    queryMock.mockReset();
+  });
+
+  function mockRuleFor(eventType: string, row: Record<string, unknown> | null) {
+    queryMock.mockImplementation((_sql: string, params: unknown[]) => {
+      const calledEventType = params[2];
+      return Promise.resolve({ rows: calledEventType === eventType && row ? [row] : [] });
+    });
+  }
+
+  it("adds a charitable_solicitation_renewal event when a DB rule matches", async () => {
+    mockRuleFor("charitable_solicitation_renewal", {
+      not_required: false,
+      rule_type: "fiscal_year_offset",
+      cadence: "annual",
+      fixed_month: null,
+      fixed_day: null,
+      offset_months: 4,
+      offset_day: 15,
+      entity_family: "nonprofit",
+    });
+    const formedAt = new Date(2026, 2, 1); // March 1, 2026, default Dec 31 fiscal year end
+    const events = await seedComplianceEventsForRegistration("nonprofit", "California", formedAt);
+    const renewal = events.find((e) => e.eventType === "charitable_solicitation_renewal");
+    // Dec (fiscal year end) + 4 months = April, day 15, next occurrence after formedAt.
+    expect(renewal?.dueDate).toEqual(new Date(2027, 3, 15));
+  });
+
+  it("does not add a charitable_solicitation_renewal event when the rule says not_required (e.g. Texas/Delaware)", async () => {
+    mockRuleFor("charitable_solicitation_renewal", {
+      not_required: true,
+      rule_type: null,
+      cadence: null,
+      fixed_month: null,
+      fixed_day: null,
+      offset_months: null,
+      offset_day: null,
+      entity_family: "nonprofit",
+    });
+    const events = await seedComplianceEventsForRegistration("nonprofit", "Texas", new Date(2026, 0, 10));
+    expect(events.find((e) => e.eventType === "charitable_solicitation_renewal")).toBeUndefined();
+  });
+
+  it("does not add a charitable_solicitation_renewal event for an unseeded state", async () => {
+    mockRuleFor("charitable_solicitation_renewal", null);
+    const events = await seedComplianceEventsForRegistration("nonprofit", "Ohio", new Date(2026, 0, 10));
+    expect(events.find((e) => e.eventType === "charitable_solicitation_renewal")).toBeUndefined();
+  });
+
+  it("never adds a charitable_solicitation_renewal event for non-nonprofit families", async () => {
+    mockRuleFor("charitable_solicitation_renewal", {
+      not_required: false,
+      rule_type: "fiscal_year_offset",
+      cadence: "annual",
+      fixed_month: null,
+      fixed_day: null,
+      offset_months: 4,
+      offset_day: 15,
+      entity_family: "nonprofit",
+    });
+    const events = await seedComplianceEventsForRegistration("llc", "California", new Date(2026, 0, 10));
+    expect(events.find((e) => e.eventType === "charitable_solicitation_renewal")).toBeUndefined();
   });
 });
