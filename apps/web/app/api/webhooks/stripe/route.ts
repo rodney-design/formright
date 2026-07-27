@@ -7,6 +7,8 @@ import { sendRegistrationConfirmationEmail } from "@/lib/email";
 import { ensureStateFiling } from "@/lib/queries/stateFilings";
 import { submitStateFilingToProvider } from "@/lib/state-filing/submit";
 import { ensureRegisteredAgentOrder } from "@/lib/queries/registeredAgent";
+import { ensureIrsFiling } from "@/lib/queries/irsFilings";
+import { entityFamily } from "@/lib/entities/entityFamily";
 import { upsertFirmSubscription } from "@/lib/queries/firmSubscriptions";
 
 export const runtime = "nodejs";
@@ -103,6 +105,14 @@ export async function POST(req: NextRequest) {
               await ensureRegisteredAgentOrder(registrationId);
             } catch (err) {
               console.error(`Failed to create registered agent order for ${registrationId}:`, err);
+              Sentry.captureException(err);
+            }
+          }
+          if (entityFamily(registration.entity_type) === "nonprofit") {
+            try {
+              await ensureIrsFiling(registrationId);
+            } catch (err) {
+              console.error(`Failed to create IRS filing record for ${registrationId}:`, err);
               Sentry.captureException(err);
             }
           }

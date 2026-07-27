@@ -270,3 +270,27 @@ CREATE TABLE nonprofit_statutes (
 );
 
 CREATE INDEX idx_nonprofit_statutes_state ON nonprofit_statutes(state);
+
+-- Federal 501(c)(3) exemption status tracking ───────────────────────────
+-- state_filings (Phase 3 additions above) tracks the state Articles filing
+-- only. Nonprofits also have a separate, usually much longer federal path —
+-- EIN -> Form 1023/1023-EZ submission -> IRS determination letter — that
+-- wasn't tracked as a first-class status anywhere. See
+-- db/migrations/014_irs_filings.sql.
+
+CREATE TABLE irs_filings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  registration_id TEXT NOT NULL REFERENCES registrations(id),
+  filing_type TEXT NOT NULL DEFAULT '1023-ez' CHECK (filing_type IN ('1023', '1023-ez')),
+  status TEXT NOT NULL DEFAULT 'not_started' CHECK (status IN (
+    'not_started', 'ein_obtained', 'submitted', 'additional_info_requested', 'approved', 'denied'
+  )),
+  ein TEXT,
+  determination_letter_s3_key TEXT,
+  submitted_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_irs_filings_registration ON irs_filings(registration_id);
+CREATE INDEX idx_irs_filings_status ON irs_filings(status) WHERE status NOT IN ('approved', 'denied');
