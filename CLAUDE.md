@@ -60,6 +60,47 @@ since Netlify has no auto-injected-header equivalent to Vercel Cron. No other
 Vercel-specific code existed in the app (no `@vercel/*` packages, no edge
 middleware, no ISR/ image-optimization config to migrate) — this was a clean swap.
 
+This migration work (netlify.toml, the scheduled function, README/CLAUDE.md updates)
+lives on branch `claude/vercel-build-deployment-7iptur`. **It has not been merged to
+the default branch or deployed anywhere yet** — see "Coming-soon site is live, main
+app is not" below for what's actually running in production right now.
+
+A live Vercel API token was pasted into a chat session on 2026-07-26 while
+troubleshooting the old Vercel setup. It should be treated as compromised — rotate/
+revoke it in Vercel (Settings → Tokens) regardless of whether Vercel is still used for
+anything. Not confirmed done as of this writing.
+
+## Coming-soon site is live, main app is not (as of 2026-07-26)
+
+`formright.org` is live in production right now, but it's serving the **standalone
+coming-soon page** (`marketing-temp/index.html`, built on branch
+`claude/temp-marketing-site` by a separate session — see that branch's own commit
+for context), not the FormRight app. Concretely:
+
+- Netlify project name: `formright` (team: rodney-urhb1t8's team). Production branch
+  is set to `claude/temp-marketing-site`, base directory `marketing-temp`, no build
+  command — plain static HTML.
+- DNS for `formright.org` is at IONOS: `A @ → 75.2.60.5`, `CNAME www → formright.netlify.app`.
+  Existing Gmail MX/SPF/DKIM/domain-verification records were left untouched. HTTPS via
+  Let's Encrypt is provisioned and working.
+- The page's "Get Notified at Launch" button is a real `<form data-netlify="true">`
+  (Netlify Forms — no backend needed), submitting to `marketing-temp/thanks.html`.
+  Submissions land in the Netlify dashboard's **Forms** tab; no email notification is
+  configured yet (nobody gets pinged when someone signs up — has to be checked
+  manually, or set up under Forms → Form notifications → Add notification).
+- Footer contact address is `hello@formright.org` (fixed from a placeholder
+  `hello@formright.com`, a domain FormRight doesn't own) — confirm that inbox actually
+  exists in the Google Workspace tied to the domain, or create it.
+- `marketing-temp/README.md`'s "Retiring it" section still says to point the domain at
+  a Vercel deployment — stale, that whole plan is Netlify now. Needs a rewrite once the
+  real app deploy exists (see next section), since the actual next step will be moving
+  `formright.org`'s DNS from this Netlify project to whatever Netlify project ends up
+  hosting `apps/web`.
+
+**The real Next.js app has no deployment at all right now** — the `formright` Netlify
+project above is fully consumed by the coming-soon page. Setting up the actual app
+needs a **separate, new Netlify project** — see the checklist below.
+
 ## Storage backend: Supabase, not AWS
 
 `lib/storage.ts` (not `lib/s3.ts` — that file is gone) uses `@supabase/supabase-js`
@@ -95,19 +136,25 @@ None of this can be provisioned from an agent sandbox; it needs real accounts/cr
 1. **Supabase project** — Postgres (`DATABASE_URL`) + a private Storage bucket
    (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET`). Load
    `db/schema.sql` into it.
-2. **Netlify project** (host is Netlify, not Vercel — see "Deployment platform"
-   below) — import the repo:
+2. **A new, separate Netlify project for the real app** (host is Netlify, not
+   Vercel — see "Deployment platform" above). The existing `formright` Netlify
+   project is already spoken for by the coming-soon page (see "Coming-soon site is
+   live, main app is not" above) — don't repoint it, create a second project:
+   - First, merge `claude/vercel-build-deployment-7iptur` into the default branch
+     (`claude/build-it-ntpntq`) — that's where `netlify.toml` and the scheduled
+     function currently live, and they're not on the default branch yet.
+   - Import the repo as a new Netlify project, branch = default branch.
    - **Base directory**: `apps/web` (the only app in this monorepo). `netlify.toml`
      at the repo root already sets this, plus `@netlify/plugin-nextjs`, so the
      Netlify UI's own base-directory field should just confirm/match it.
    - **Node.js Version**: `20.x` (no `.nvmrc`/`engines` pin in the repo, but
      `@types/node` is `^20` and that's the safe match for Next 14.2.35).
    - Every var from `.env.example` set for Production + Deploy Previews (Netlify's
-     equivalent of Vercel's Production/Preview split), same list as before.
-   - The `formrightcomingsoon` placeholder ("coming soon" page, `marketing-temp/`
-     in this repo) is a **separate** Netlify site from the main app — same repo,
-     different site with its base directory set to `marketing-temp` instead of
-     `apps/web`. Plain static HTML, no build command, no plugin needed.
+     equivalent of Vercel's Production/Preview split), same list as before, plus a
+     freshly generated `JWT_SECRET` / `CRON_SECRET` (see item 6) — don't reuse
+     whatever's set on the coming-soon project, generate new ones for this project.
+   - Once this is live and verified end-to-end (item 9 below), `formright.org`'s DNS
+     needs to move from the coming-soon Netlify project to this one.
 3. **Stripe** — live/test keys, and a webhook endpoint registered at
    `/api/webhooks/stripe` subscribed to `payment_intent.succeeded`,
    `payment_intent.payment_failed`, `checkout.session.completed`,
