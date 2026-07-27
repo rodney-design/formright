@@ -1,19 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/auth";
-import { updateRegisteredAgentOrder } from "@/lib/queries/registeredAgent";
+import { requireContractor } from "@/lib/auth";
+import { getContractorByUserId } from "@/lib/queries/contractors";
+import { getRegisteredAgentOrderById, updateRegisteredAgentOrder } from "@/lib/queries/registeredAgent";
 import { REGISTERED_AGENT_STATUSES, type RegisteredAgentStatus } from "@/lib/registered-agent/status";
-import { assignContractorToRegisteredAgentOrder } from "@/lib/queries/contractors";
 
 export const runtime = "nodejs";
 
-// Manual fulfillment update — staff place the order with Northwest's
-// wholesale team by phone/email (see db/migrations/005_registered_agent.sql
-// for why), then record the result here.
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  let user;
   try {
-    await requireAdmin();
+    user = await requireContractor();
   } catch {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const contractor = await getContractorByUserId(user.id);
+  const order = await getRegisteredAgentOrderById(params.id);
+  if (!contractor || !order || order.assigned_contractor_id !== contractor.id) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   const body = await req.json().catch(() => null);
@@ -22,7 +26,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   const update: { status?: RegisteredAgentStatus; providerConfirmationId?: string } = {};
-
   if (typeof body.status === "string" && body.status) {
     if (!REGISTERED_AGENT_STATUSES.includes(body.status as RegisteredAgentStatus)) {
       return NextResponse.json({ error: "Invalid status" }, { status: 400 });
@@ -34,12 +37,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   const updated = await updateRegisteredAgentOrder(params.id, update);
-
-  if (typeof body.assignedContractorId === "string") {
-    await assignContractorToRegisteredAgentOrder(params.id, body.assignedContractorId || null);
-  }
-
-  if (!updated && typeof body.assignedContractorId !== "string") {
+  if (!updated) {
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
   }
 

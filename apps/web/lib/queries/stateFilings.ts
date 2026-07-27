@@ -3,6 +3,11 @@ import { query } from "@/lib/db";
 import type { FilingStatus, StateFiling } from "@/lib/state-filing/status";
 export type { FilingStatus, StateFiling } from "@/lib/state-filing/status";
 
+export async function getStateFilingById(id: string): Promise<StateFiling | null> {
+  const result = await query<StateFiling>("SELECT * FROM state_filings WHERE id = $1", [id]);
+  return result.rows[0] ?? null;
+}
+
 export async function getStateFilingForRegistration(registrationId: string): Promise<StateFiling | null> {
   const result = await query<StateFiling>(
     "SELECT * FROM state_filings WHERE registration_id = $1 ORDER BY updated_at DESC LIMIT 1",

@@ -15,4 +15,5 @@ export interface StateFiling {
   updated_at: string;
   provider: string;
   provider_filing_id: string | null;
+  assigned_contractor_id: string | null;
 }

@@ -4,16 +4,20 @@ import { useState } from "react";
 import type { RegisteredAgentOrder, RegisteredAgentStatus } from "@/lib/registered-agent/status";
 import { REGISTERED_AGENT_STATUSES } from "@/lib/registered-agent/status";
 import type { StateFilingWorksheetField } from "@/lib/state-filing/types";
+import type { ContractorWithUser } from "@/lib/contractors/types";
 
 export default function RegisteredAgentPanel({
   order,
   packet,
+  contractors,
 }: {
   order: RegisteredAgentOrder;
   packet: StateFilingWorksheetField[];
+  contractors: ContractorWithUser[];
 }) {
   const [status, setStatus] = useState<RegisteredAgentStatus>(order.status);
   const [confirmationId, setConfirmationId] = useState(order.provider_confirmation_id ?? "");
+  const [assignedContractorId, setAssignedContractorId] = useState(order.assigned_contractor_id ?? "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -24,7 +28,7 @@ export default function RegisteredAgentPanel({
       const res = await fetch(`/api/admin/registered-agent-orders/${order.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status, providerConfirmationId: confirmationId }),
+        body: JSON.stringify({ status, providerConfirmationId: confirmationId, assignedContractorId }),
       });
       if (res.ok) setSaved(true);
     } finally {
@@ -74,6 +78,21 @@ export default function RegisteredAgentPanel({
             placeholder="e.g. Northwest order number"
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
           />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">Assigned contractor</label>
+          <select
+            value={assignedContractorId}
+            onChange={(e) => setAssignedContractorId(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
+          >
+            <option value="">Unassigned</option>
+            {contractors.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name || c.email}
+              </option>
+            ))}
+          </select>
         </div>
         <button
           onClick={save}

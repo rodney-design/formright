@@ -1,23 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/auth";
-import { updateStateFiling } from "@/lib/queries/stateFilings";
+import { requireContractor } from "@/lib/auth";
+import { getContractorByUserId } from "@/lib/queries/contractors";
+import { getStateFilingById, updateStateFiling } from "@/lib/queries/stateFilings";
 import { FILING_STATUSES, type FilingStatus } from "@/lib/state-filing/status";
 import { uploadDocument } from "@/lib/storage";
-import { assignContractorToStateFiling } from "@/lib/queries/contractors";
 
 export const runtime = "nodejs";
 
-// Manual filing status update (build-order doc §Phase 3 step 3: "filing
-// status webhook/polling — update registration status in real time"). Since
-// none of the 5 priority states expose a real filing-status webhook or
-// polling API today, this is staff updating status by hand after checking
-// the state's own portal, plus attaching the stamped certificate once the
-// state issues one. See lib/state-filing/worksheet.ts for the fuller context.
+// Contractor-facing equivalent of api/admin/state-filings/[id]/route.ts —
+// same update shape, but restricted to jobs actually assigned to the
+// requesting contractor (an admin can edit any filing; a contractor can
+// only touch their own assigned work).
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  let user;
   try {
-    await requireAdmin();
+    user = await requireContractor();
   } catch {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const contractor = await getContractorByUserId(user.id);
+  const filing = await getStateFilingById(params.id);
+  if (!contractor || !filing || filing.assigned_contractor_id !== contractor.id) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   const formData = await req.formData().catch(() => null);
@@ -28,7 +33,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const filingStatusRaw = formData.get("filingStatus");
   const stateConfirmationId = formData.get("stateConfirmationId");
   const stampedDoc = formData.get("stampedDoc");
-  const assignedContractorId = formData.get("assignedContractorId");
 
   const update: { filingStatus?: FilingStatus; stateConfirmationId?: string; stampedDocS3Key?: string } = {};
 
@@ -49,12 +53,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   const updated = await updateStateFiling(params.id, update);
-
-  if (typeof assignedContractorId === "string") {
-    await assignContractorToStateFiling(params.id, assignedContractorId || null);
-  }
-
-  if (!updated && typeof assignedContractorId !== "string") {
+  if (!updated) {
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
   }
 

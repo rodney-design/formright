@@ -9,7 +9,7 @@ CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email TEXT UNIQUE NOT NULL,
   name TEXT,
-  role TEXT NOT NULL DEFAULT 'client' CHECK (role IN ('client','admin','super_admin')),
+  role TEXT NOT NULL DEFAULT 'client' CHECK (role IN ('client','admin','super_admin','contractor')),
   magic_link_token TEXT,
   token_expiry TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -294,3 +294,54 @@ CREATE TABLE irs_filings (
 
 CREATE INDEX idx_irs_filings_registration ON irs_filings(registration_id);
 CREATE INDEX idx_irs_filings_status ON irs_filings(status) WHERE status NOT IN ('approved', 'denied');
+
+-- Contractor management ──────────────────────────────────────────────────
+-- The humans who do FormRight's actual manual state filings and registered
+-- agent orders (see the state_filings.provider / registered_agent_orders.provider
+-- comments above — no state exposes a real filing API, and Northwest's
+-- wholesale channel is phone/email). See db/migrations/015_contractors.sql.
+-- Contractors are `users` rows (role = 'contractor') so they get the
+-- existing magic-link auth for free.
+
+CREATE TABLE contractors (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL UNIQUE REFERENCES users(id),
+  states_covered TEXT[] NOT NULL DEFAULT '{}',
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+  payout_notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE state_filings ADD COLUMN assigned_contractor_id UUID REFERENCES contractors(id);
+ALTER TABLE registered_agent_orders ADD COLUMN assigned_contractor_id UUID REFERENCES contractors(id);
+
+CREATE INDEX idx_state_filings_assigned_contractor ON state_filings(assigned_contractor_id) WHERE assigned_contractor_id IS NOT NULL;
+CREATE INDEX idx_registered_agent_orders_assigned_contractor ON registered_agent_orders(assigned_contractor_id) WHERE assigned_contractor_id IS NOT NULL;
+
+-- Minimal QA checklist, not a generic workflow engine — a fixed small set of
+-- items per filing job (see lib/contractors/checklist.ts for the seeded
+-- label set).
+CREATE TABLE filing_checklist_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  state_filing_id UUID NOT NULL REFERENCES state_filings(id) ON DELETE CASCADE,
+  label TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  completed_at TIMESTAMPTZ,
+  completed_by UUID REFERENCES contractors(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_filing_checklist_items_state_filing ON filing_checklist_items(state_filing_id);
+
+CREATE TABLE contractor_payouts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  contractor_id UUID NOT NULL REFERENCES contractors(id),
+  state_filing_id UUID REFERENCES state_filings(id),
+  amount_cents INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'paid')),
+  paid_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_contractor_payouts_contractor ON contractor_payouts(contractor_id);
+CREATE INDEX idx_contractor_payouts_status ON contractor_payouts(status) WHERE status = 'pending';

@@ -3,17 +3,21 @@
 import { useState } from "react";
 import { FILING_STATUSES, type FilingStatus, type StateFiling } from "@/lib/state-filing/status";
 import type { StateFilingWorksheet } from "@/lib/state-filing/types";
+import type { ContractorWithUser } from "@/lib/contractors/types";
 
 export default function StateFilingPanel({
   filing,
   worksheet,
+  contractors,
 }: {
   filing: StateFiling;
   worksheet: StateFilingWorksheet;
+  contractors: ContractorWithUser[];
 }) {
   const [filingStatus, setFilingStatus] = useState<FilingStatus>(filing.filing_status);
   const [confirmationId, setConfirmationId] = useState(filing.state_confirmation_id ?? "");
   const [stampedDoc, setStampedDoc] = useState<File | null>(null);
+  const [assignedContractorId, setAssignedContractorId] = useState(filing.assigned_contractor_id ?? "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [hasStampedDoc, setHasStampedDoc] = useState(!!filing.stamped_doc_s3_key);
@@ -26,6 +30,7 @@ export default function StateFilingPanel({
       formData.set("filingStatus", filingStatus);
       if (confirmationId) formData.set("stateConfirmationId", confirmationId);
       if (stampedDoc) formData.set("stampedDoc", stampedDoc);
+      formData.set("assignedContractorId", assignedContractorId);
 
       const res = await fetch(`/api/admin/state-filings/${filing.id}`, { method: "PATCH", body: formData });
       if (res.ok) {
@@ -92,6 +97,21 @@ export default function StateFilingPanel({
             onChange={(e) => setStampedDoc(e.target.files?.[0] ?? null)}
             className="text-sm"
           />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">Assigned contractor</label>
+          <select
+            value={assignedContractorId}
+            onChange={(e) => setAssignedContractorId(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
+          >
+            <option value="">Unassigned</option>
+            {contractors.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name || c.email}
+              </option>
+            ))}
+          </select>
         </div>
         <button
           onClick={save}

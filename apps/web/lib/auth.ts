@@ -12,7 +12,7 @@ export interface SessionUser {
   id: string;
   email: string;
   name: string | null;
-  role: "client" | "admin" | "super_admin";
+  role: "client" | "admin" | "super_admin" | "contractor";
 }
 
 function jwtSecret(): string {
@@ -136,6 +136,14 @@ export async function requireUser(): Promise<SessionUser> {
 export async function requireAdmin(): Promise<SessionUser> {
   const user = await requireUser();
   if (user.role !== "admin" && user.role !== "super_admin") {
+    throw new Error("Forbidden");
+  }
+  return user;
+}
+
+export async function requireContractor(): Promise<SessionUser> {
+  const user = await requireUser();
+  if (user.role !== "contractor") {
     throw new Error("Forbidden");
   }
   return user;

@@ -6,6 +6,7 @@ import { buildFilingWorksheet } from "@/lib/state-filing/worksheet";
 import { getRegisteredAgentOrderForRegistration } from "@/lib/queries/registeredAgent";
 import { buildRegisteredAgentOrderPacket } from "@/lib/registered-agent/worksheet";
 import { getIrsFilingForRegistration } from "@/lib/queries/irsFilings";
+import { getAllContractors } from "@/lib/queries/contractors";
 import { entityFamily } from "@/lib/entities/entityFamily";
 import DownloadButton from "@/components/dashboard/DownloadButton";
 import AdminRegDetailForm from "@/components/admin/AdminRegDetailForm";
@@ -22,6 +23,8 @@ export default async function AdminRegistrationDetailPage({ params }: { params: 
   const stateFiling = await getStateFilingForRegistration(reg.id);
   const registeredAgentOrder = await getRegisteredAgentOrderForRegistration(reg.id);
   const irsFiling = entityFamily(reg.entity_type) === "nonprofit" ? await getIrsFilingForRegistration(reg.id) : null;
+  const contractors = await getAllContractors();
+  const activeContractors = contractors.filter((c) => c.status === "active");
 
   return (
     <div className="max-w-3xl">
@@ -67,11 +70,15 @@ export default async function AdminRegistrationDetailPage({ params }: { params: 
       <AdminRegDetailForm id={reg.id} status={reg.status} notes={reg.notes ?? ""} />
 
       {stateFiling && (
-        <StateFilingPanel filing={stateFiling} worksheet={buildFilingWorksheet(reg)} />
+        <StateFilingPanel filing={stateFiling} worksheet={buildFilingWorksheet(reg)} contractors={activeContractors} />
       )}
 
       {registeredAgentOrder && (
-        <RegisteredAgentPanel order={registeredAgentOrder} packet={buildRegisteredAgentOrderPacket(reg)} />
+        <RegisteredAgentPanel
+          order={registeredAgentOrder}
+          packet={buildRegisteredAgentOrderPacket(reg)}
+          contractors={activeContractors}
+        />
       )}
 
       {irsFiling && <IrsFilingPanel filing={irsFiling} />}
