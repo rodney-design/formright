@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/auth";
 import { updateStateFiling } from "@/lib/queries/stateFilings";
 import { FILING_STATUSES, type FilingStatus } from "@/lib/state-filing/status";
 import { uploadDocument } from "@/lib/storage";
+import { assignContractorToStateFiling } from "@/lib/queries/contractors";
 
 export const runtime = "nodejs";
 
@@ -27,6 +28,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const filingStatusRaw = formData.get("filingStatus");
   const stateConfirmationId = formData.get("stateConfirmationId");
   const stampedDoc = formData.get("stampedDoc");
+  const assignedContractorId = formData.get("assignedContractorId");
 
   const update: { filingStatus?: FilingStatus; stateConfirmationId?: string; stampedDocS3Key?: string } = {};
 
@@ -47,7 +49,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   const updated = await updateStateFiling(params.id, update);
-  if (!updated) {
+
+  if (typeof assignedContractorId === "string") {
+    await assignContractorToStateFiling(params.id, assignedContractorId || null);
+  }
+
+  if (!updated && typeof assignedContractorId !== "string") {
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
   }
 

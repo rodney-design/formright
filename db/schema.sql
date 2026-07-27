@@ -9,7 +9,7 @@ CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email TEXT UNIQUE NOT NULL,
   name TEXT,
-  role TEXT NOT NULL DEFAULT 'client' CHECK (role IN ('client','admin','super_admin')),
+  role TEXT NOT NULL DEFAULT 'client' CHECK (role IN ('client','admin','super_admin','contractor')),
   magic_link_token TEXT,
   token_expiry TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -243,3 +243,105 @@ CREATE TABLE compliance_rules (
   UNIQUE (state, entity_family, event_type),
   CHECK (not_required OR (rule_type IS NOT NULL AND cadence IS NOT NULL))
 );
+
+-- Nonprofit statutory reference data ────────────────────────────────────
+-- Per-state nonprofit-corporation-act citations, and — where a state's own
+-- act mandates specific Articles language — the actual required statutory
+-- statement. Same posture/precedent as compliance_rules above: only
+-- DE/CA/FL/NY/TX are seeded, each row checked against the state's published
+-- statute text; see db/migrations/013_nonprofit_statutes.sql for sourcing.
+-- This is sourced legal-reference data for template fallback and staff use,
+-- not a substitute for review by a licensed attorney in the jurisdiction of
+-- formation. Every unseeded state keeps using the generic 501(c)(3)
+-- template in buildArticles() (lib/doc-engine/builders/nonprofit.ts).
+
+CREATE TABLE nonprofit_statutes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  state TEXT NOT NULL,
+  subtype TEXT,  -- 'public_benefit' | 'mutual_benefit' | 'religious' (California), or NULL
+  act_name TEXT NOT NULL,
+  act_citation TEXT NOT NULL,
+  statute_url TEXT,
+  purpose_clause TEXT,   -- mandated Articles purpose statement, or NULL if none
+  dissolution_note TEXT, -- citation/mechanism for Article XI, free text
+  source TEXT NOT NULL,
+  verified_at DATE NOT NULL,
+  UNIQUE (state, subtype)
+);
+
+CREATE INDEX idx_nonprofit_statutes_state ON nonprofit_statutes(state);
+
+-- Federal 501(c)(3) exemption status tracking ───────────────────────────
+-- state_filings (Phase 3 additions above) tracks the state Articles filing
+-- only. Nonprofits also have a separate, usually much longer federal path —
+-- EIN -> Form 1023/1023-EZ submission -> IRS determination letter — that
+-- wasn't tracked as a first-class status anywhere. See
+-- db/migrations/014_irs_filings.sql.
+
+CREATE TABLE irs_filings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  registration_id TEXT NOT NULL REFERENCES registrations(id),
+  filing_type TEXT NOT NULL DEFAULT '1023-ez' CHECK (filing_type IN ('1023', '1023-ez')),
+  status TEXT NOT NULL DEFAULT 'not_started' CHECK (status IN (
+    'not_started', 'ein_obtained', 'submitted', 'additional_info_requested', 'approved', 'denied'
+  )),
+  ein TEXT,
+  determination_letter_s3_key TEXT,
+  submitted_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_irs_filings_registration ON irs_filings(registration_id);
+CREATE INDEX idx_irs_filings_status ON irs_filings(status) WHERE status NOT IN ('approved', 'denied');
+
+-- Contractor management ──────────────────────────────────────────────────
+-- The humans who do FormRight's actual manual state filings and registered
+-- agent orders (see the state_filings.provider / registered_agent_orders.provider
+-- comments above — no state exposes a real filing API, and Northwest's
+-- wholesale channel is phone/email). See db/migrations/015_contractors.sql.
+-- Contractors are `users` rows (role = 'contractor') so they get the
+-- existing magic-link auth for free.
+
+CREATE TABLE contractors (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL UNIQUE REFERENCES users(id),
+  states_covered TEXT[] NOT NULL DEFAULT '{}',
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+  payout_notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE state_filings ADD COLUMN assigned_contractor_id UUID REFERENCES contractors(id);
+ALTER TABLE registered_agent_orders ADD COLUMN assigned_contractor_id UUID REFERENCES contractors(id);
+
+CREATE INDEX idx_state_filings_assigned_contractor ON state_filings(assigned_contractor_id) WHERE assigned_contractor_id IS NOT NULL;
+CREATE INDEX idx_registered_agent_orders_assigned_contractor ON registered_agent_orders(assigned_contractor_id) WHERE assigned_contractor_id IS NOT NULL;
+
+-- Minimal QA checklist, not a generic workflow engine — a fixed small set of
+-- items per filing job (see lib/contractors/checklist.ts for the seeded
+-- label set).
+CREATE TABLE filing_checklist_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  state_filing_id UUID NOT NULL REFERENCES state_filings(id) ON DELETE CASCADE,
+  label TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  completed_at TIMESTAMPTZ,
+  completed_by UUID REFERENCES contractors(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_filing_checklist_items_state_filing ON filing_checklist_items(state_filing_id);
+
+CREATE TABLE contractor_payouts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  contractor_id UUID NOT NULL REFERENCES contractors(id),
+  state_filing_id UUID REFERENCES state_filings(id),
+  amount_cents INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'paid')),
+  paid_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_contractor_payouts_contractor ON contractor_payouts(contractor_id);
+CREATE INDEX idx_contractor_payouts_status ON contractor_payouts(status) WHERE status = 'pending';

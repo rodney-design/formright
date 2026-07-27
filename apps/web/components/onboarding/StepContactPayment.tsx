@@ -65,6 +65,7 @@ export default function StepContactPayment({
           geoArea: s.geoArea,
           beneficiaries: s.beneficiaries,
           revenue: s.revenue,
+          caNonprofitSubtype: s.caNonprofitSubtype,
           board: s.board,
           registeredAgentName: s.registeredAgentName,
           registeredAgentAddress: s.registeredAgentAddress,

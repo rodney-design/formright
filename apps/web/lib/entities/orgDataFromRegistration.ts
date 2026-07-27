@@ -1,4 +1,7 @@
 import type { OrgData } from "@/lib/doc-engine/types";
+import type { NonprofitSubtype } from "./nonprofitStatutesTable";
+
+const VALID_SUBTYPES: NonprofitSubtype[] = ["public_benefit", "mutual_benefit", "religious"];
 
 export interface RegistrationRow {
   id: string;
@@ -20,6 +23,7 @@ interface RegistrationNotes {
   revenue?: string;
   programs?: string;
   phone?: string;
+  nonprofitSubtype?: string;
 }
 
 function parseNotes(notes: string | null): RegistrationNotes {
@@ -64,5 +68,8 @@ export function orgDataFromRegistration(reg: RegistrationRow): OrgData {
     revenue: extra.revenue,
     programs: extra.programs,
     phone: extra.phone,
+    nonprofitSubtype: VALID_SUBTYPES.includes(extra.nonprofitSubtype as NonprofitSubtype)
+      ? (extra.nonprofitSubtype as NonprofitSubtype)
+      : undefined,
   };
 }

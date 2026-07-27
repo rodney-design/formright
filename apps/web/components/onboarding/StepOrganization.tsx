@@ -4,14 +4,27 @@ import { useState } from "react";
 import { useOnboardStore } from "@/lib/store/onboardStore";
 import { STATE_FEES } from "@/lib/entities/stateFees";
 import { ENTITY_TYPE_OPTIONS } from "@/lib/data/entityTypeOptions";
+import { entityFamily } from "@/lib/entities/entityFamily";
 import { Field, TextInput, Select, FormGrid, FormActions } from "./fields";
 import { Button } from "@/components/ui/Button";
 
 const STATES = Object.keys(STATE_FEES);
 
+// California Nonprofit Corporation Law (Corp. Code Div. 2) splits nonprofits
+// into 3 statutory sub-types with distinct required Articles language — see
+// db/migrations/013_nonprofit_statutes.sql for the source citations. Shown
+// only for CA + a nonprofit entity type; every other state's nonprofit law
+// doesn't make this distinction, so there's nothing to ask there.
+const CA_SUBTYPE_OPTIONS: { value: "public_benefit" | "mutual_benefit" | "religious"; label: string }[] = [
+  { value: "public_benefit", label: "Public Benefit (charitable, educational — most 501(c)(3) orgs)" },
+  { value: "mutual_benefit", label: "Mutual Benefit (business league, social club — 501(c)(6)/(c)(7))" },
+  { value: "religious", label: "Religious Corporation" },
+];
+
 export default function StepOrganization() {
   const s = useOnboardStore();
   const [errors, setErrors] = useState<Record<string, boolean>>({});
+  const showCaSubtype = s.state === "California" && entityFamily(s.orgtype) === "nonprofit";
 
   function next() {
     const nextErrors = {
@@ -78,6 +91,25 @@ export default function StepOrganization() {
         <Field label="EIN (if existing)" hint="Leave blank if not yet assigned">
           <TextInput value={s.ein} onChange={(e) => s.setField("ein", e.target.value)} placeholder="XX-XXXXXXX" maxLength={10} />
         </Field>
+        {showCaSubtype && (
+          <Field
+            label="California Nonprofit Corporation Type"
+            full
+            hint="Required by California's Nonprofit Corporation Law — determines the exact statutory language in your Articles (Corp. Code §§ 5130/7130/9130)."
+          >
+            <Select
+              value={s.caNonprofitSubtype}
+              onChange={(e) => s.setField("caNonprofitSubtype", e.target.value as typeof s.caNonprofitSubtype)}
+            >
+              <option value="">Use default for my entity type</option>
+              {CA_SUBTYPE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
       </FormGrid>
       <FormActions stepLabel="Step 1 of 6">
         <Button onClick={next}>Continue →</Button>

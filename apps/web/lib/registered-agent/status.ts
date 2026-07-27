@@ -11,4 +11,5 @@ export interface RegisteredAgentOrder {
   requested_at: string | null;
   activated_at: string | null;
   updated_at: string;
+  assigned_contractor_id: string | null;
 }

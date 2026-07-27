@@ -24,6 +24,13 @@ export interface OnboardState {
   city: string;
   zip: string;
   ein: string;
+  // California Nonprofit Corporation Law splits nonprofits into 3 statutory
+  // sub-types with distinct required Articles language (Corp. Code Div. 2,
+  // Parts 2/3/4 — see nonprofitStatutesTable.ts). Only shown/used when state
+  // is California and orgtype is a nonprofit; "" means "not selected", in
+  // which case the document generator derives a sensible default from
+  // orgtype instead.
+  caNonprofitSubtype: "" | "public_benefit" | "mutual_benefit" | "religious";
 
   // Step 2 — Mission & Programs
   mission: string;
@@ -97,6 +104,7 @@ const initialState = {
   city: "",
   zip: "",
   ein: "",
+  caNonprofitSubtype: "" as const,
   mission: "",
   programs: "",
   geoArea: "Local community",

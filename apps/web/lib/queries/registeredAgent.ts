@@ -3,6 +3,11 @@ import { query } from "@/lib/db";
 import type { RegisteredAgentOrder, RegisteredAgentStatus } from "@/lib/registered-agent/status";
 export type { RegisteredAgentOrder, RegisteredAgentStatus } from "@/lib/registered-agent/status";
 
+export async function getRegisteredAgentOrderById(id: string): Promise<RegisteredAgentOrder | null> {
+  const result = await query<RegisteredAgentOrder>("SELECT * FROM registered_agent_orders WHERE id = $1", [id]);
+  return result.rows[0] ?? null;
+}
+
 export async function getRegisteredAgentOrderForRegistration(
   registrationId: string
 ): Promise<RegisteredAgentOrder | null> {

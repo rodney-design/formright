@@ -2,9 +2,20 @@ import { getCurrentUser } from "@/lib/auth";
 import { getRegistrationsForUser } from "@/lib/queries/registrations";
 import { getStateFilingForRegistration } from "@/lib/queries/stateFilings";
 import { getRegisteredAgentOrderForRegistration } from "@/lib/queries/registeredAgent";
+import { getIrsFilingForRegistration } from "@/lib/queries/irsFilings";
+import { entityFamily } from "@/lib/entities/entityFamily";
 import { getDocumentUrl } from "@/lib/storage";
 import StatusBadge from "@/components/dashboard/StatusBadge";
 import DownloadButton from "@/components/dashboard/DownloadButton";
+
+const IRS_FILING_STATUS_LABELS: Record<string, string> = {
+  not_started: "Not yet started",
+  ein_obtained: "EIN obtained — preparing application",
+  submitted: "Submitted to the IRS — awaiting review",
+  additional_info_requested: "IRS requested additional information",
+  approved: "Approved — tax-exempt status granted",
+  denied: "Denied",
+};
 
 const FILING_STATUS_LABELS: Record<string, string> = {
   not_submitted: "Not yet submitted to the state",
@@ -49,6 +60,10 @@ export default async function FilingStatusPage() {
     ? await getDocumentUrl(stateFiling.stamped_doc_s3_key)
     : null;
   const registeredAgentOrder = await getRegisteredAgentOrderForRegistration(active.id);
+  const irsFiling = entityFamily(active.entity_type) === "nonprofit" ? await getIrsFilingForRegistration(active.id) : null;
+  const determinationLetterUrl = irsFiling?.determination_letter_s3_key
+    ? await getDocumentUrl(irsFiling.determination_letter_s3_key)
+    : null;
 
   return (
     <div>
@@ -142,6 +157,33 @@ export default async function FilingStatusPage() {
               <div className="font-medium text-navy capitalize">{registeredAgentOrder.provider}</div>
             </div>
           </div>
+        </div>
+      )}
+
+      {irsFiling && (
+        <div className="bg-white border border-gray-200 rounded-2xl p-6 mt-6">
+          <div className="font-semibold text-navy mb-4">
+            Federal 501(c)(3) Status — {irsFiling.filing_type === "1023-ez" ? "Form 1023-EZ" : "Form 1023"}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-gray-600">
+            <div>
+              <span className="text-gray-400">Status</span>
+              <div className="font-medium text-navy">
+                {IRS_FILING_STATUS_LABELS[irsFiling.status] ?? irsFiling.status}
+              </div>
+            </div>
+            <div>
+              <span className="text-gray-400">EIN</span>
+              <div className="font-medium text-navy">{irsFiling.ein || "Pending"}</div>
+            </div>
+          </div>
+          {determinationLetterUrl && (
+            <div className="mt-4">
+              <DownloadButton href={determinationLetterUrl} variant="dark">
+                ⬇ Download IRS Determination Letter
+              </DownloadButton>
+            </div>
+          )}
         </div>
       )}
     </div>

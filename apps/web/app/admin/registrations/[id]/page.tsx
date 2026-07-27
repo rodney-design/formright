@@ -5,10 +5,14 @@ import { getStateFilingForRegistration } from "@/lib/queries/stateFilings";
 import { buildFilingWorksheet } from "@/lib/state-filing/worksheet";
 import { getRegisteredAgentOrderForRegistration } from "@/lib/queries/registeredAgent";
 import { buildRegisteredAgentOrderPacket } from "@/lib/registered-agent/worksheet";
+import { getIrsFilingForRegistration } from "@/lib/queries/irsFilings";
+import { getAllContractors } from "@/lib/queries/contractors";
+import { entityFamily } from "@/lib/entities/entityFamily";
 import DownloadButton from "@/components/dashboard/DownloadButton";
 import AdminRegDetailForm from "@/components/admin/AdminRegDetailForm";
 import StateFilingPanel from "@/components/admin/StateFilingPanel";
 import RegisteredAgentPanel from "@/components/admin/RegisteredAgentPanel";
+import IrsFilingPanel from "@/components/admin/IrsFilingPanel";
 
 export default async function AdminRegistrationDetailPage({ params }: { params: { id: string } }) {
   const reg = await getRegistrationById(params.id);
@@ -18,6 +22,9 @@ export default async function AdminRegistrationDetailPage({ params }: { params: 
   const address = reg.address as { address?: string; city?: string; zip?: string } | null;
   const stateFiling = await getStateFilingForRegistration(reg.id);
   const registeredAgentOrder = await getRegisteredAgentOrderForRegistration(reg.id);
+  const irsFiling = entityFamily(reg.entity_type) === "nonprofit" ? await getIrsFilingForRegistration(reg.id) : null;
+  const contractors = await getAllContractors();
+  const activeContractors = contractors.filter((c) => c.status === "active");
 
   return (
     <div className="max-w-3xl">
@@ -63,12 +70,18 @@ export default async function AdminRegistrationDetailPage({ params }: { params: 
       <AdminRegDetailForm id={reg.id} status={reg.status} notes={reg.notes ?? ""} />
 
       {stateFiling && (
-        <StateFilingPanel filing={stateFiling} worksheet={buildFilingWorksheet(reg)} />
+        <StateFilingPanel filing={stateFiling} worksheet={buildFilingWorksheet(reg)} contractors={activeContractors} />
       )}
 
       {registeredAgentOrder && (
-        <RegisteredAgentPanel order={registeredAgentOrder} packet={buildRegisteredAgentOrderPacket(reg)} />
+        <RegisteredAgentPanel
+          order={registeredAgentOrder}
+          packet={buildRegisteredAgentOrderPacket(reg)}
+          contractors={activeContractors}
+        />
       )}
+
+      {irsFiling && <IrsFilingPanel filing={irsFiling} />}
 
       <div className="bg-white border border-gray-200 rounded-2xl p-6 mt-6">
         <div className="font-semibold text-navy mb-4">Documents ({docs.length})</div>

@@ -15,6 +15,7 @@ const ensureRegisteredAgentOrderMock = vi.fn();
 const sendRegistrationConfirmationEmailMock = vi.fn();
 const captureExceptionMock = vi.fn();
 
+vi.mock("server-only", () => ({}));
 vi.mock("@/lib/db", () => ({ query: queryMock }));
 vi.mock("@/lib/stripe", () => ({
   getStripe: () => ({ webhooks: { constructEvent: constructEventMock } }),

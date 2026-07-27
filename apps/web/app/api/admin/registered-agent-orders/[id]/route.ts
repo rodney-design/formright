@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { updateRegisteredAgentOrder } from "@/lib/queries/registeredAgent";
 import { REGISTERED_AGENT_STATUSES, type RegisteredAgentStatus } from "@/lib/registered-agent/status";
+import { assignContractorToRegisteredAgentOrder } from "@/lib/queries/contractors";
 
 export const runtime = "nodejs";
 
@@ -33,7 +34,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   const updated = await updateRegisteredAgentOrder(params.id, update);
-  if (!updated) {
+
+  if (typeof body.assignedContractorId === "string") {
+    await assignContractorToRegisteredAgentOrder(params.id, body.assignedContractorId || null);
+  }
+
+  if (!updated && typeof body.assignedContractorId !== "string") {
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
   }
 
