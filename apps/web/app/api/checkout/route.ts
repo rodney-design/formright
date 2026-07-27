@@ -31,6 +31,7 @@ const checkoutSchema = z.object({
   geoArea: z.string().optional().default(""),
   beneficiaries: z.string().optional().default(""),
   revenue: z.string().optional().default(""),
+  caNonprofitSubtype: z.string().optional().default(""),
   board: z.array(boardMemberSchema).default([]),
   registeredAgentName: z.string().optional().default(""),
   registeredAgentAddress: z.string().optional().default(""),
@@ -93,6 +94,7 @@ export async function POST(req: NextRequest) {
   const registrationId = generateRegistrationId();
   const notes = JSON.stringify({
     orgtypeRaw: data.orgtype,
+    nonprofitSubtype: data.caNonprofitSubtype,
     programs: data.programs,
     geoArea: data.geoArea,
     beneficiaries: data.beneficiaries,

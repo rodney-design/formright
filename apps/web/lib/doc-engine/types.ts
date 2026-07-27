@@ -6,6 +6,8 @@
 // interface — the caller (typically a server action reading a `registrations`
 // row) is responsible for supplying real data. Builders remain pure
 // data-in/data-out functions per brief §3.2.
+import type { NonprofitStatute, NonprofitSubtype } from "../entities/nonprofitStatutesTable";
+
 export interface BoardMember {
   name: string;
   role: string;
@@ -67,4 +69,24 @@ export interface OrgData {
 
   /** Set when this document is generated for a Pro-tier firm's client formation. */
   branding?: DocBranding;
+
+  /**
+   * California nonprofit corporation-law sub-type (public benefit / mutual
+   * benefit / religious — see nonprofitStatutesTable.ts). Set from an
+   * explicit onboarding selection when the founder is incorporating a
+   * nonprofit in California (StepOrganization.tsx); otherwise left undefined
+   * and the call site derives a default via deriveCaliforniaSubtype().
+   * Meaningless outside California today, since no other seeded state splits
+   * nonprofit corporations into sub-types.
+   */
+  nonprofitSubtype?: NonprofitSubtype;
+
+  /**
+   * Resolved per-state nonprofit statutory reference (see
+   * lib/entities/nonprofitStatutesTable.ts) — only set for nonprofit-family
+   * registrations in a seeded state. Builders stay pure/synchronous, so the
+   * async DB lookup happens at the call site (the document-generation route)
+   * before OrgData is constructed, same pattern as `branding` above.
+   */
+  nonprofitStatute?: NonprofitStatute | null;
 }

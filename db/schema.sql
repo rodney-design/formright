@@ -243,3 +243,30 @@ CREATE TABLE compliance_rules (
   UNIQUE (state, entity_family, event_type),
   CHECK (not_required OR (rule_type IS NOT NULL AND cadence IS NOT NULL))
 );
+
+-- Nonprofit statutory reference data ────────────────────────────────────
+-- Per-state nonprofit-corporation-act citations, and — where a state's own
+-- act mandates specific Articles language — the actual required statutory
+-- statement. Same posture/precedent as compliance_rules above: only
+-- DE/CA/FL/NY/TX are seeded, each row checked against the state's published
+-- statute text; see db/migrations/013_nonprofit_statutes.sql for sourcing.
+-- This is sourced legal-reference data for template fallback and staff use,
+-- not a substitute for review by a licensed attorney in the jurisdiction of
+-- formation. Every unseeded state keeps using the generic 501(c)(3)
+-- template in buildArticles() (lib/doc-engine/builders/nonprofit.ts).
+
+CREATE TABLE nonprofit_statutes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  state TEXT NOT NULL,
+  subtype TEXT,  -- 'public_benefit' | 'mutual_benefit' | 'religious' (California), or NULL
+  act_name TEXT NOT NULL,
+  act_citation TEXT NOT NULL,
+  statute_url TEXT,
+  purpose_clause TEXT,   -- mandated Articles purpose statement, or NULL if none
+  dissolution_note TEXT, -- citation/mechanism for Article XI, free text
+  source TEXT NOT NULL,
+  verified_at DATE NOT NULL,
+  UNIQUE (state, subtype)
+);
+
+CREATE INDEX idx_nonprofit_statutes_state ON nonprofit_statutes(state);

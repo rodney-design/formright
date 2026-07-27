@@ -73,6 +73,7 @@ function bdr(c: string) {
 }
 
 export function buildArticles(O: OrgData) {
+  const statute = O.nonprofitStatute;
   return [
     ...coverBlock(O, "Articles of Incorporation", `A Nonprofit Corporation · State of ${O.state}`),
     h1("Articles of Incorporation"),
@@ -82,6 +83,15 @@ export function buildArticles(O: OrgData) {
     p(`The name of this corporation is ${O.name} (the "Corporation").`),
     blank(),
     h2("Article II — Nonprofit Purpose"),
+    // When a state-specific statutory purpose statement exists (e.g.
+    // California Corp. Code §§ 5130/7130/9130 — see nonprofitStatutesTable.ts),
+    // it's required verbatim in the Articles alongside the federal 501(c)(3)
+    // exempt-purpose language below, not instead of it — that's how these are
+    // actually drafted in practice (state-mandated statement + IRS-required
+    // purpose clause as separate paragraphs).
+    ...(statute?.purposeClause
+      ? [p(statute.purposeClause.replace("this corporation", O.name).replace("This corporation", O.name), { after: 160 })]
+      : []),
     p(
       `The Corporation is organized exclusively for charitable, educational, scientific, and/or literary purposes within the meaning of Section 501(c)(3) of the Internal Revenue Code.`
     ),
@@ -118,6 +128,9 @@ export function buildArticles(O: OrgData) {
     p(
       `Upon dissolution, assets shall be distributed for one or more exempt purposes within the meaning of Section 501(c)(3) of the Code, or to the federal, state, or local government for a public purpose.`
     ),
+    ...(statute?.dissolutionNote
+      ? [p(`State-law note (${statute.actCitation}): ${statute.dissolutionNote}`, { italic: true, color: "475569", size: 18 })]
+      : []),
     blank(),
     h2("Article XII — Incorporator"),
     p(`Name: ${O.contact}`, { bold: true }),

@@ -7,6 +7,7 @@ import { orgDataFromRegistration, type RegistrationRow } from "@/lib/entities/or
 import { generateAllDocsZip } from "@/lib/doc-engine/zip";
 import { generateAndStoreDocument } from "@/lib/doc-engine/generateAndStore";
 import { getFirmBrandingForRegistration } from "@/lib/doc-engine/branding";
+import { getNonprofitStatute, deriveCaliforniaSubtype } from "@/lib/entities/nonprofitStatutesTable";
 
 export const runtime = "nodejs";
 
@@ -37,6 +38,10 @@ export async function GET(req: NextRequest, { params }: { params: { registration
   const org = orgDataFromRegistration(reg);
   org.branding = await getFirmBrandingForRegistration(reg.firm_id);
   const family = entityFamily(reg.entity_type);
+  if (family === "nonprofit") {
+    const subtype = org.state === "California" ? org.nonprofitSubtype ?? deriveCaliforniaSubtype(org.entityType) : null;
+    org.nonprofitStatute = await getNonprofitStatute(org.state, subtype);
+  }
   const key = req.nextUrl.searchParams.get("key");
   const wantsAll = req.nextUrl.searchParams.get("all") === "1";
   const safeName = org.name.replace(/[^a-z0-9]/gi, "_");
