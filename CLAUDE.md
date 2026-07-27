@@ -133,9 +133,23 @@ claim something works, run it the same way; don't infer correctness from reading
 
 None of this can be provisioned from an agent sandbox; it needs real accounts/credentials:
 
-1. **Supabase project** — Postgres (`DATABASE_URL`) + a private Storage bucket
-   (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET`). Load
-   `db/schema.sql` into it.
+1. **Supabase project** — mostly done via the Supabase MCP connection (2026-07-27).
+   Project `formright` (ref `prmcagoivhfcgaljuryw`, `https://prmcagoivhfcgaljuryw.supabase.co`)
+   already existed with `db/schema.sql`'s tables loaded except `compliance_rules`, which
+   was missing — created it, then seeded `state_fees` (8 rows) and `compliance_rules`
+   (91 rows, all six batches — `003_phase3.sql`'s state_fees INSERT plus
+   `007`-`012_compliance_rules_*.sql`) since those migrations' seed data lives outside
+   `schema.sql` (see "Known inconsistency" above). A private `documents` Storage bucket
+   already existed too, matching `lib/storage.ts`'s expected bucket name. Security/
+   performance advisors came back clean — the `rls_enabled_no_policy` INFO notice on every
+   table is expected, since the app talks to Postgres via `DATABASE_URL`/the service-role
+   key server-side, not the Supabase client from a browser, so no anon/authenticated RLS
+   policies are needed.
+   Still human-only — MCP can't retrieve secrets: the Postgres connection string for
+   `DATABASE_URL` (dashboard → Settings → Database) and the `service_role` key for
+   `SUPABASE_SERVICE_ROLE_KEY` (dashboard → Settings → API). The other two vars are
+   already known: `SUPABASE_URL=https://prmcagoivhfcgaljuryw.supabase.co`,
+   `SUPABASE_STORAGE_BUCKET=documents`.
 2. **A new, separate Netlify project for the real app** (host is Netlify, not
    Vercel — see "Deployment platform" above). The existing `formright` Netlify
    project is already spoken for by the coming-soon page (see "Coming-soon site is
