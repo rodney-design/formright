@@ -161,6 +161,21 @@ describe("calculateAnnualReportDueDate", () => {
     );
     expect(due).toEqual(new Date(2028, 0, 31));
   });
+
+  // Regression for the fiscal-year-offset bug (see the matching test in the
+  // calculateForm990NDueDate block below for the full explanation) exercised
+  // through the general state-rule path — e.g. Massachusetts/North
+  // Carolina/South Carolina corporate annual reports, not just the Form
+  // 990-N wrapper — since both call the same underlying date math.
+  it("fiscal_year_offset: rolls the fiscal-year-end forward when formation falls after FYE but before the offset due month", () => {
+    const formedAt = new Date(2026, 7, 15); // August 15, 2026
+    const due = calculateAnnualReportDueDate(
+      { notRequired: false, ruleType: "fiscal_year_offset", cadence: "annual", fixedMonth: null, fixedDay: null, offsetMonths: 5, offsetDay: 15, yearParity: null },
+      formedAt,
+      "June 30"
+    );
+    expect(due).toEqual(new Date(2027, 10, 15)); // Nov 15, 2027 — not 2026
+  });
 });
 
 describe("calculateForm990NDueDate", () => {
@@ -188,6 +203,31 @@ describe("calculateForm990NDueDate", () => {
     const formedAt = new Date(2026, 11, 1); // December 1, 2026
     const due = calculateForm990NDueDate("June 30", formedAt);
     expect(due).toEqual(new Date(2027, 10, 15));
+  });
+
+  // Regression for a real bug: the old code only checked whether the
+  // computed DUE DATE was already past formedAt, not whether the fiscal
+  // year end it's based on had already passed. Fiscal year ending June 30,
+  // formed Aug 15 — that June 30 already happened before the entity
+  // existed, but the naive "5 months later = Nov 15" due date still looked
+  // like it was in the future, so the old guard never fired and returned
+  // Nov 15 of the *same* year the entity formed in, computed from a fiscal
+  // year it was never part of. The correct due date is Nov 15 of the
+  // *following* year, five months after the first fiscal year end (June
+  // 30) that actually occurs after formation.
+  it("rolls the fiscal-year-end forward when formation falls after FYE but before the offset due month", () => {
+    const formedAt = new Date(2026, 7, 15); // August 15, 2026
+    const due = calculateForm990NDueDate("June 30", formedAt);
+    expect(due).toEqual(new Date(2027, 10, 15)); // Nov 15, 2027 — not 2026
+  });
+
+  it("does not roll forward when formation falls before the fiscal year end in the same year", () => {
+    // Sanity check against the fix above: formed May 2026, before the June
+    // 30 fiscal year end in that same year, so that FYE genuinely is the
+    // entity's first one and the due date should stay in 2026.
+    const formedAt = new Date(2026, 4, 1); // May 1, 2026
+    const due = calculateForm990NDueDate("June 30", formedAt);
+    expect(due).toEqual(new Date(2026, 10, 15)); // Nov 15, 2026
   });
 });
 
