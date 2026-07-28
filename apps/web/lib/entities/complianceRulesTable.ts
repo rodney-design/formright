@@ -215,8 +215,20 @@ export function calculateAnnualReportDueDate(
   if (rule.ruleType === "anniversary_exact_date") {
     // Due on the exact calendar date of formation, 1 year out (e.g.
     // Massachusetts LLCs — not month-end, the literal anniversary).
+    //
+    // BUG (fixed): `new Date(year, month, day)` silently rolls over into the
+    // next month when `day` doesn't exist in the target month/year — an
+    // entity formed Feb 29 (leap year) landing its due date in a non-leap
+    // year used to come back as March 1, not Feb 29/28, because JS's Date
+    // constructor never throws on an out-of-range day. Clamp to the last
+    // valid day of the target month instead, so a Feb 29 anniversary is due
+    // Feb 28 in a non-leap year rather than silently jumping a day into
+    // March.
     const yearsOut = rule.cadence === "biennial" ? 2 : 1;
-    return new Date(formedAt.getFullYear() + yearsOut, formedAt.getMonth(), formedAt.getDate());
+    const dueYear = formedAt.getFullYear() + yearsOut;
+    const daysInDueMonth = new Date(dueYear, formedAt.getMonth() + 1, 0).getDate();
+    const day = Math.min(formedAt.getDate(), daysInDueMonth);
+    return new Date(dueYear, formedAt.getMonth(), day);
   }
 
   if (rule.ruleType === "fiscal_year_offset") {

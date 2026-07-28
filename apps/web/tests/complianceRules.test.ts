@@ -162,6 +162,40 @@ describe("calculateAnnualReportDueDate", () => {
     expect(due).toEqual(new Date(2028, 0, 31));
   });
 
+  // Regression for a real bug: `new Date(year, month, day)` silently rolls
+  // over into the next month when `day` doesn't exist in the target
+  // month/year, instead of throwing. An entity formed Feb 29 (leap year)
+  // used to come back with a due date of March 1 in a non-leap due year,
+  // not Feb 28 — a full day off with no error anywhere to catch it.
+  it("anniversary_exact_date: Feb 29 anniversary clamps to Feb 28 in a non-leap due year", () => {
+    const formedAt = new Date(2028, 1, 29); // Feb 29, 2028 (leap year)
+    const due = calculateAnnualReportDueDate(
+      { notRequired: false, ruleType: "anniversary_exact_date", cadence: "annual", fixedMonth: null, fixedDay: null, offsetMonths: null, offsetDay: null, yearParity: null },
+      formedAt
+    );
+    expect(due).toEqual(new Date(2029, 1, 28)); // Feb 28, 2029 — not March 1
+  });
+
+  it("anniversary_exact_date: Feb 29 anniversary also clamps 2 years out (biennial) — never a leap year either", () => {
+    // Leap years are 4 years apart, so a biennial (+2 years) due date from a
+    // Feb 29 formation always lands in a non-leap year too.
+    const formedAt = new Date(2028, 1, 29); // Feb 29, 2028
+    const due = calculateAnnualReportDueDate(
+      { notRequired: false, ruleType: "anniversary_exact_date", cadence: "biennial", fixedMonth: null, fixedDay: null, offsetMonths: null, offsetDay: null, yearParity: null },
+      formedAt
+    );
+    expect(due).toEqual(new Date(2030, 1, 28));
+  });
+
+  it("anniversary_exact_date: non-Feb-29 dates are unaffected", () => {
+    const formedAt = new Date(2026, 5, 15); // June 15, 2026
+    const due = calculateAnnualReportDueDate(
+      { notRequired: false, ruleType: "anniversary_exact_date", cadence: "annual", fixedMonth: null, fixedDay: null, offsetMonths: null, offsetDay: null, yearParity: null },
+      formedAt
+    );
+    expect(due).toEqual(new Date(2027, 5, 15));
+  });
+
   // Regression for the fiscal-year-offset bug (see the matching test in the
   // calculateForm990NDueDate block below for the full explanation) exercised
   // through the general state-rule path — e.g. Massachusetts/North
