@@ -28,22 +28,20 @@ export async function upsertFirmSubscription(
   seats: number,
   renewsAt: Date | null
 ): Promise<void> {
-  const existing = await query<{ id: string }>(
-    "SELECT id FROM firm_subscriptions WHERE stripe_subscription_id = $1",
-    [stripeSubscriptionId]
+  // BUG (fixed): this used to SELECT-then-branch to INSERT or UPDATE, with
+  // no transaction/locking. stripe_subscription_id is UNIQUE NOT NULL, and
+  // Stripe explicitly documents at-least-once, possibly-concurrent webhook
+  // delivery — two near-simultaneous deliveries for the same new
+  // subscription could both see "not found" and both attempt INSERT, the
+  // loser throwing an uncaught unique-violation. A single
+  // INSERT ... ON CONFLICT DO UPDATE is atomic and removes the race.
+  await query(
+    `INSERT INTO firm_subscriptions (firm_id, stripe_subscription_id, status, seats, renews_at)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (stripe_subscription_id)
+     DO UPDATE SET status = EXCLUDED.status, seats = EXCLUDED.seats, renews_at = EXCLUDED.renews_at`,
+    [firmId, stripeSubscriptionId, status, seats, renewsAt]
   );
-  if (existing.rows.length > 0) {
-    await query(
-      "UPDATE firm_subscriptions SET status = $1, seats = $2, renews_at = $3 WHERE stripe_subscription_id = $4",
-      [status, seats, renewsAt, stripeSubscriptionId]
-    );
-  } else {
-    await query(
-      `INSERT INTO firm_subscriptions (firm_id, stripe_subscription_id, status, seats, renews_at)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [firmId, stripeSubscriptionId, status, seats, renewsAt]
-    );
-  }
 }
 
 // Per-seat billing (build-order doc §Phase 4 step 4): keeps the Stripe

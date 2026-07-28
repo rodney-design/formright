@@ -142,6 +142,15 @@ export async function POST(req: NextRequest) {
   // FormRight Comply subscription (build-order doc §Phase 2 step 4) and
   // firm per-seat billing (build-order doc §Phase 4 step 4) — distinguished
   // by which metadata key is present (userId vs. firmId).
+  //
+  // BUG (fixed): these two branches used to run completely unguarded, in
+  // sharp contrast to the extensively try/catch-isolated payment_intent
+  // branch above. Both upsert helpers are now atomic (see
+  // upsertFirmSubscription's comment), but a Stripe API hiccup on
+  // subscriptions.retrieve, or any other failure, would still throw and
+  // 500 the whole webhook with zero logging/visibility — an invisible
+  // failure mode for subscription/billing sync. Isolated the same way the
+  // payment branch already is.
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
     if (session.mode === "subscription" && session.subscription) {
@@ -149,10 +158,15 @@ export async function POST(req: NextRequest) {
         typeof session.subscription === "string" ? session.subscription : session.subscription.id;
       const firmId = session.metadata?.firmId;
       const userId = session.client_reference_id ?? session.metadata?.userId;
-      if (firmId) {
-        await upsertFirmSeatSubscription(firmId, subscriptionId);
-      } else if (userId) {
-        await upsertSubscription(userId, subscriptionId);
+      try {
+        if (firmId) {
+          await upsertFirmSeatSubscription(firmId, subscriptionId);
+        } else if (userId) {
+          await upsertSubscription(userId, subscriptionId);
+        }
+      } catch (err) {
+        console.error(`Failed to sync subscription ${subscriptionId} from checkout.session.completed:`, err);
+        Sentry.captureException(err);
       }
     }
   }
@@ -161,10 +175,15 @@ export async function POST(req: NextRequest) {
     const subscription = event.data.object as Stripe.Subscription;
     const firmId = subscription.metadata?.firmId;
     const userId = subscription.metadata?.userId;
-    if (firmId) {
-      await upsertFirmSeatSubscription(firmId, subscription.id, subscription);
-    } else if (userId) {
-      await upsertSubscription(userId, subscription.id, subscription);
+    try {
+      if (firmId) {
+        await upsertFirmSeatSubscription(firmId, subscription.id, subscription);
+      } else if (userId) {
+        await upsertSubscription(userId, subscription.id, subscription);
+      }
+    } catch (err) {
+      console.error(`Failed to sync subscription ${subscription.id} from ${event.type}:`, err);
+      Sentry.captureException(err);
     }
   }
 
@@ -200,20 +219,14 @@ async function upsertSubscription(userId: string, subscriptionId: string, subscr
     ? new Date(sub.items.data[0].current_period_end * 1000)
     : null;
 
-  const existing = await query<{ id: string }>(
-    "SELECT id FROM subscriptions WHERE stripe_subscription_id = $1",
-    [subscriptionId]
+  // BUG (fixed): this used to SELECT-then-branch to INSERT or UPDATE, with
+  // no transaction/locking — same race as upsertFirmSubscription (see that
+  // function's comment). subscriptions.stripe_subscription_id is UNIQUE
+  // NOT NULL.
+  await query(
+    `INSERT INTO subscriptions (user_id, stripe_subscription_id, plan, status, renews_at)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (stripe_subscription_id) DO UPDATE SET status = EXCLUDED.status, renews_at = EXCLUDED.renews_at`,
+    [userId, subscriptionId, plan, sub.status, renewsAt]
   );
-  if (existing.rows.length > 0) {
-    await query(
-      "UPDATE subscriptions SET status = $1, renews_at = $2 WHERE stripe_subscription_id = $3",
-      [sub.status, renewsAt, subscriptionId]
-    );
-  } else {
-    await query(
-      `INSERT INTO subscriptions (user_id, stripe_subscription_id, plan, status, renews_at)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [userId, subscriptionId, plan, sub.status, renewsAt]
-    );
-  }
 }
