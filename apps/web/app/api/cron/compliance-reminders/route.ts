@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { query } from "@/lib/db";
 import { sendComplianceReminderEmail } from "@/lib/email";
 
@@ -39,18 +40,32 @@ export async function GET(req: NextRequest) {
   );
 
   let sent = 0;
+  let failed = 0;
+  // BUG (fixed): this loop had no per-event error isolation — one failed
+  // send (a SendGrid hiccup, etc.) threw and aborted the whole loop,
+  // silently dropping every reminder queued after it in this run. Since
+  // matching above is an *exact* day-count (90/60/30), a skipped event
+  // doesn't get caught up tomorrow — it simply never matches that
+  // threshold again, permanently dropping that reminder. Isolating each
+  // iteration means one bad send can't take down the rest of the batch.
   for (const event of dueEvents.rows) {
     if (!event.contact_email) continue;
-    await sendComplianceReminderEmail(
-      event.contact_email,
-      event.orgname,
-      event.event_type,
-      event.due_date,
-      event.days_until
-    );
-    await query("UPDATE compliance_events SET reminded_at = now() WHERE id = $1", [event.id]);
-    sent++;
+    try {
+      await sendComplianceReminderEmail(
+        event.contact_email,
+        event.orgname,
+        event.event_type,
+        event.due_date,
+        event.days_until
+      );
+      await query("UPDATE compliance_events SET reminded_at = now() WHERE id = $1", [event.id]);
+      sent++;
+    } catch (err) {
+      console.error(`Failed to send compliance reminder for event ${event.id}:`, err);
+      Sentry.captureException(err);
+      failed++;
+    }
   }
 
-  return NextResponse.json({ checked: dueEvents.rows.length, sent });
+  return NextResponse.json({ checked: dueEvents.rows.length, sent, failed });
 }
