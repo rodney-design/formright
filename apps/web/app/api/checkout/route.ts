@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
-import { query } from "@/lib/db";
+import { query, withTransaction } from "@/lib/db";
 import { getStripe } from "@/lib/stripe";
 import { entityFamily } from "@/lib/entities/entityFamily";
 import { getStateFeeForEntity } from "@/lib/entities/stateFeesTable";
+import { isValidState } from "@/lib/entities/stateFees";
 import { ADDONS, getPlansForEntity } from "@/lib/entities/pricing";
 import { insertRegistrationWithUniqueId } from "@/lib/registrationId";
 import { seedComplianceEventsForRegistration } from "@/lib/entities/complianceRulesTable";
@@ -26,7 +27,7 @@ const boardMemberSchema = z.object({
 const checkoutSchema = z.object({
   orgname: z.string().min(1),
   orgtype: z.string().min(1),
-  state: z.string().min(1),
+  state: z.string().min(1).refine(isValidState, { message: "Unrecognized state" }),
   fiscal: z.string().optional().default(""),
   address: z.string().min(1),
   city: z.string().min(1),
@@ -152,13 +153,34 @@ export async function POST(req: NextRequest) {
     )
   );
 
-  const complianceEvents = await seedComplianceEventsForRegistration(family, data.state, new Date(), data.fiscal);
-  for (const event of complianceEvents) {
-    await query(
-      `INSERT INTO compliance_events (registration_id, event_type, due_date)
-       VALUES ($1, $2, $3)`,
-      [registrationId, event.eventType, event.dueDate]
-    );
+  try {
+    const complianceEvents = await seedComplianceEventsForRegistration(family, data.state, new Date(), data.fiscal);
+    // All-or-nothing: a partial insert (event 2 of 3 failing) would otherwise
+    // leave an inconsistent set of compliance events attached to a
+    // registration that hasn't even reached Stripe yet.
+    await withTransaction(async (tx) => {
+      for (const event of complianceEvents) {
+        await tx.query(
+          `INSERT INTO compliance_events (registration_id, event_type, due_date)
+           VALUES ($1, $2, $3)`,
+          [registrationId, event.eventType, event.dueDate]
+        );
+      }
+    });
+  } catch (err) {
+    // Same rollback shape as the Stripe-session-creation failure below — this
+    // failure happens before Stripe is even involved, so it needs its own
+    // cleanup rather than leaving an orphaned 'pending' registration.
+    console.error(`Failed to seed compliance events for ${registrationId}:`, err);
+    Sentry.captureException(err);
+    try {
+      await query("DELETE FROM compliance_events WHERE registration_id = $1", [registrationId]);
+      await query("DELETE FROM registrations WHERE id = $1", [registrationId]);
+    } catch (cleanupErr) {
+      console.error(`Failed to roll back orphaned registration ${registrationId}:`, cleanupErr);
+      Sentry.captureException(cleanupErr);
+    }
+    return NextResponse.json({ error: "Could not create checkout session" }, { status: 502 });
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? req.nextUrl.origin;

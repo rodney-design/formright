@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { query } from "@/lib/db";
 import { requireApiKeyFirm, ApiAuthError, RateLimitError } from "@/lib/apiAuth";
-import { entityFamily } from "@/lib/entities/entityFamily";
+import { tryEntityFamily } from "@/lib/entities/entityFamily";
 import { getStateFeeForEntity } from "@/lib/entities/stateFeesTable";
+import { isValidState } from "@/lib/entities/stateFees";
 import { insertRegistrationWithUniqueId } from "@/lib/registrationId";
 import { seedComplianceEventsForRegistration } from "@/lib/entities/complianceRulesTable";
 import { ensureStateFiling } from "@/lib/queries/stateFilings";
@@ -28,7 +29,7 @@ const boardMemberSchema = z.object({
 const formationSchema = z.object({
   orgname: z.string().min(1),
   orgtype: z.string().min(1),
-  state: z.string().min(1),
+  state: z.string().min(1).refine(isValidState, { message: "Unrecognized state" }),
   fiscal: z.string().optional().default(""),
   address: z.string().min(1),
   city: z.string().min(1),
@@ -61,7 +62,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid request", details: parsed.error.flatten() }, { status: 400 });
   }
   const data = parsed.data;
-  const family = entityFamily(data.orgtype);
+  const family = tryEntityFamily(data.orgtype);
+  if (!family) {
+    return NextResponse.json(
+      {
+        error: "Unrecognized orgtype",
+        accepted: ["llc", "ccorp", "scorp", "nonprofit", "benefit", "pc", "sole"],
+      },
+      { status: 400 }
+    );
+  }
 
   const stateFeeDetail = await getStateFeeForEntity(data.state, family);
   const stateFeeCents = stateFeeDetail?.feeCents ?? 0;

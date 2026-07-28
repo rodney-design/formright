@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/auth";
 import { updateIrsFiling } from "@/lib/queries/irsFilings";
 import { IRS_FILING_STATUSES, type IrsFilingStatus } from "@/lib/irs-filing/status";
 import { uploadDocument } from "@/lib/storage";
+import { sanitizeUploadFilename, validateUploadedFile } from "@/lib/uploads";
 
 export const runtime = "nodejs";
 
@@ -38,8 +39,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     update.ein = ein;
   }
   if (determinationLetter instanceof File && determinationLetter.size > 0) {
+    const validationError = validateUploadedFile(determinationLetter);
+    if (validationError) return NextResponse.json(validationError, { status: 400 });
     const buffer = Buffer.from(await determinationLetter.arrayBuffer());
-    const storageKey = `irs-filings/${params.id}/determination_${Date.now()}_${determinationLetter.name}`;
+    const storageKey = `irs-filings/${params.id}/determination_${Date.now()}_${sanitizeUploadFilename(determinationLetter.name)}`;
     await uploadDocument(storageKey, buffer, determinationLetter.type || "application/pdf");
     update.determinationLetterS3Key = storageKey;
   }

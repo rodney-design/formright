@@ -4,6 +4,7 @@ import { getContractorByUserId } from "@/lib/queries/contractors";
 import { getStateFilingById, updateStateFiling } from "@/lib/queries/stateFilings";
 import { FILING_STATUSES, type FilingStatus } from "@/lib/state-filing/status";
 import { uploadDocument } from "@/lib/storage";
+import { sanitizeUploadFilename, validateUploadedFile } from "@/lib/uploads";
 
 export const runtime = "nodejs";
 
@@ -46,8 +47,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     update.stateConfirmationId = stateConfirmationId;
   }
   if (stampedDoc instanceof File && stampedDoc.size > 0) {
+    const validationError = validateUploadedFile(stampedDoc);
+    if (validationError) return NextResponse.json(validationError, { status: 400 });
     const buffer = Buffer.from(await stampedDoc.arrayBuffer());
-    const storageKey = `state-filings/${params.id}/stamped_${Date.now()}_${stampedDoc.name}`;
+    const storageKey = `state-filings/${params.id}/stamped_${Date.now()}_${sanitizeUploadFilename(stampedDoc.name)}`;
     await uploadDocument(storageKey, buffer, stampedDoc.type || "application/pdf");
     update.stampedDocS3Key = storageKey;
   }

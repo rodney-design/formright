@@ -1,12 +1,22 @@
 import Link from "next/link";
 import ComplyUpsellCard from "@/components/onboarding/ComplyUpsellCard";
 import FormationCompletedTracker from "@/components/onboarding/FormationCompletedTracker";
+import { getRegistrationById } from "@/lib/queries/registrations";
+import { PAID_REGISTRATION_STATUSES } from "@/lib/registrationStatus";
 
-export default function OnboardSuccessPage({
+// The `registration` query param is just an ID a client redirected with —
+// nothing here has verified the webhook actually confirmed payment yet, so
+// this can't claim "confirmed" for any ID typed into the URL. Look the
+// registration's real status up server-side instead of asserting it.
+export default async function OnboardSuccessPage({
   searchParams,
 }: {
   searchParams: { registration?: string };
 }) {
+  const registrationId = searchParams.registration;
+  const registration = registrationId ? await getRegistrationById(registrationId) : null;
+  const isConfirmed = !!registration && (PAID_REGISTRATION_STATUSES as readonly string[]).includes(registration.status);
+
   return (
     <div className="max-w-xl mx-auto text-center py-20 px-6">
       <FormationCompletedTracker registrationId={searchParams.registration} />
@@ -16,11 +26,17 @@ export default function OnboardSuccessPage({
       <h2 className="text-2xl font-serif font-bold text-navy mb-3">You&apos;re on your way!</h2>
       <p className="text-gray-500 mb-8">
         Your FormRight account has been created and your formation has been initiated.
-        {searchParams.registration && (
+        {registrationId && isConfirmed && (
           <>
             {" "}
-            Registration <strong>{searchParams.registration}</strong> is confirmed. Check your email
-            for next steps.
+            Registration <strong>{registrationId}</strong> is confirmed. Check your email for next steps.
+          </>
+        )}
+        {registrationId && !isConfirmed && (
+          <>
+            {" "}
+            We&apos;re finalizing registration <strong>{registrationId}</strong> — you&apos;ll get an
+            email as soon as your payment is confirmed.
           </>
         )}
       </p>

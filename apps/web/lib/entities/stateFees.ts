@@ -18,3 +18,13 @@ export function getStateFee(state: string | null | undefined): number | null {
   if (!state) return null;
   return STATE_FEES[state] ?? null;
 }
+
+// The full list of states the wizard's "State of Formation" dropdown offers
+// (StepOrganization.tsx) — same source, so server-side validation can never
+// reject a value the wizard itself let someone pick. Free-text `state`
+// elsewhere (checkout, API v1) previously accepted anything: an unrecognized
+// state silently produced a $0 state fee and propagated into documents and
+// filings instead of erroring.
+export function isValidState(state: string | null | undefined): boolean {
+  return !!state && state in STATE_FEES;
+}

@@ -1,23 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { query } from "@/lib/db";
 import { sendComplianceReminderEmail } from "@/lib/email";
 import { PAID_REGISTRATION_STATUSES } from "@/lib/registrationStatus";
+import { timingSafeEqualStrings } from "@/lib/timingSafe";
+import { cleanupExpiredSessionsAndTokens } from "@/lib/sessionCleanup";
 
 export const runtime = "nodejs";
 
 const REMINDER_WINDOWS = [90, 60, 30];
 
-// Reminder cron (build-order doc §Phase 2 step 6). Scheduled daily via
-// vercel.json. Matches events whose due_date is *exactly* 90, 60, or 30 days
-// out, so each event gets up to three reminders as its deadline approaches —
-// not a "due within" range, which would re-notify every day inside the window.
+// Reminder cron (build-order doc §Phase 2 step 6). Scheduled daily via the
+// Netlify Scheduled Function in netlify/functions/compliance-reminders-cron.ts.
+// Matches events whose due_date is *exactly* 90, 60, or 30 days out, so each
+// event gets up to three reminders as its deadline approaches — not a "due
+// within" range, which would re-notify every day inside the window.
+//
+// Also sweeps expired sessions and stale magic-link tokens (see
+// lib/sessionCleanup.ts) — piggybacking on this daily run rather than adding
+// a second scheduled function for something with no timing requirements.
 export async function GET(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) {
     return NextResponse.json({ error: "CRON_SECRET is not set" }, { status: 500 });
   }
-  const authHeader = req.headers.get("authorization");
-  if (authHeader !== `Bearer ${cronSecret}`) {
+  const authHeader = req.headers.get("authorization") ?? "";
+  if (!timingSafeEqualStrings(authHeader, `Bearer ${cronSecret}`)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -57,5 +65,15 @@ export async function GET(req: NextRequest) {
     sent++;
   }
 
-  return NextResponse.json({ checked: dueEvents.rows.length, sent });
+  // Isolated in its own try/catch — a cleanup failure shouldn't stop the
+  // reminder-sending result above from being reported as successful.
+  let cleanup: { sessionsDeleted: number; tokensCleared: number } | null = null;
+  try {
+    cleanup = await cleanupExpiredSessionsAndTokens();
+  } catch (err) {
+    console.error("Failed to clean up expired sessions/tokens:", err);
+    Sentry.captureException(err);
+  }
+
+  return NextResponse.json({ checked: dueEvents.rows.length, sent, cleanup });
 }

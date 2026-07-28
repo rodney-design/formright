@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import type Stripe from "stripe";
-import { getStripe } from "@/lib/stripe";
+import { getStripe, getSingleSubscriptionItem } from "@/lib/stripe";
 import { query } from "@/lib/db";
 import { sendRegistrationConfirmationEmail } from "@/lib/email";
 import { ensureStateFiling } from "@/lib/queries/stateFilings";
@@ -58,6 +58,20 @@ export async function POST(req: NextRequest) {
         const registration = regResult.rows[0];
 
         if (registration) {
+          // The checkout session's line items are server-computed, so a
+          // mismatch shouldn't happen — but this is cheap insurance against
+          // it happening silently (a bug in the Stripe session amount, a
+          // stale registration row, a manual DB edit) rather than trusting
+          // the DB's own number unconditionally. Non-blocking: flag and move
+          // on rather than refusing to mark a real payment as paid.
+          if (paymentIntent.amount_received !== registration.amount_cents) {
+            const mismatchErr = new Error(
+              `Payment amount mismatch for registration ${registrationId}: DB=${registration.amount_cents} Stripe=${paymentIntent.amount_received}`
+            );
+            console.error(mismatchErr.message);
+            Sentry.captureException(mismatchErr);
+          }
+
           await query("UPDATE registrations SET status = 'paid' WHERE id = $1", [registrationId]);
           await query(
             `INSERT INTO payments (registration_id, stripe_payment_intent_id, amount_cents, state_fee_cents, status)
@@ -185,10 +199,9 @@ function purchasedRegisteredAgent(notes: string | null): boolean {
 async function upsertFirmSeatSubscription(firmId: string, subscriptionId: string, subscription?: Stripe.Subscription) {
   const stripe = getStripe();
   const sub = subscription ?? (await stripe.subscriptions.retrieve(subscriptionId));
-  const seats = sub.items.data[0]?.quantity ?? 1;
-  const renewsAt = sub.items.data[0]?.current_period_end
-    ? new Date(sub.items.data[0].current_period_end * 1000)
-    : null;
+  const item = getSingleSubscriptionItem(sub);
+  const seats = item?.quantity ?? 1;
+  const renewsAt = item?.current_period_end ? new Date(item.current_period_end * 1000) : null;
   await upsertFirmSubscription(firmId, subscriptionId, sub.status, seats, renewsAt);
 }
 
@@ -196,9 +209,8 @@ async function upsertSubscription(userId: string, subscriptionId: string, subscr
   const stripe = getStripe();
   const sub = subscription ?? (await stripe.subscriptions.retrieve(subscriptionId));
   const plan = (sub.metadata?.plan as "comply" | "agent" | undefined) ?? "comply";
-  const renewsAt = sub.items.data[0]?.current_period_end
-    ? new Date(sub.items.data[0].current_period_end * 1000)
-    : null;
+  const item = getSingleSubscriptionItem(sub);
+  const renewsAt = item?.current_period_end ? new Date(item.current_period_end * 1000) : null;
 
   const existing = await query<{ id: string }>(
     "SELECT id FROM subscriptions WHERE stripe_subscription_id = $1",

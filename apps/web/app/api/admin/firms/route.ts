@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
-import { query } from "@/lib/db";
+import { withTransaction } from "@/lib/db";
 
 export const runtime = "nodejs";
 
@@ -31,26 +31,34 @@ export async function POST(req: NextRequest) {
   }
   const { name, adminEmail, adminName } = parsed.data;
 
-  const firmResult = await query<{ id: string }>("INSERT INTO firms (name) VALUES ($1) RETURNING id", [name]);
-  const firmId = firmResult.rows[0].id;
+  // Firm insert -> user find-or-create -> membership insert used to be three
+  // separate top-level queries; a failure partway through (e.g. the
+  // membership insert) orphaned a firms row with no admin attached. Wrapped
+  // in one transaction so it's all-or-nothing.
+  const firmId = await withTransaction(async (tx) => {
+    const firmResult = await tx.query<{ id: string }>("INSERT INTO firms (name) VALUES ($1) RETURNING id", [name]);
+    const firmId = firmResult.rows[0].id;
 
-  const existingUser = await query<{ id: string }>("SELECT id FROM users WHERE email = $1", [adminEmail]);
-  let userId: string;
-  if (existingUser.rows.length > 0) {
-    userId = existingUser.rows[0].id;
-  } else {
-    const inserted = await query<{ id: string }>("INSERT INTO users (email, name) VALUES ($1, $2) RETURNING id", [
-      adminEmail,
-      adminName || null,
-    ]);
-    userId = inserted.rows[0].id;
-  }
+    const existingUser = await tx.query<{ id: string }>("SELECT id FROM users WHERE email = $1", [adminEmail]);
+    let userId: string;
+    if (existingUser.rows.length > 0) {
+      userId = existingUser.rows[0].id;
+    } else {
+      const inserted = await tx.query<{ id: string }>(
+        "INSERT INTO users (email, name) VALUES ($1, $2) RETURNING id",
+        [adminEmail, adminName || null]
+      );
+      userId = inserted.rows[0].id;
+    }
 
-  await query(
-    `INSERT INTO firm_members (firm_id, user_id, role, invited_at, joined_at)
-     VALUES ($1, $2, 'firm_admin', now(), now())`,
-    [firmId, userId]
-  );
+    await tx.query(
+      `INSERT INTO firm_members (firm_id, user_id, role, invited_at, joined_at)
+       VALUES ($1, $2, 'firm_admin', now(), now())`,
+      [firmId, userId]
+    );
+
+    return firmId;
+  });
 
   return NextResponse.json({ firmId }, { status: 201 });
 }
