@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
 import { getRegistrationsForUser } from "@/lib/queries/registrations";
@@ -54,13 +55,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
-  const [registrations, complianceEvents] = await Promise.all([
-    getRegistrationsForUser(user.id),
-    getComplianceEventsForUser(user.id),
-  ]);
+  // BUG (fixed): none of this was wrapped — a DB hiccup fetching context, or
+  // streamAssistantReply() throwing synchronously (e.g. ANTHROPIC_API_KEY
+  // isn't set yet, see CLAUDE.md's outstanding-before-launch list), was an
+  // unhandled rejection that fell through to Next's generic error page
+  // instead of the clean JSON error response every other route in this app
+  // returns, with nothing reported to Sentry either.
+  let stream: ReadableStream<Uint8Array>;
+  try {
+    const [registrations, complianceEvents] = await Promise.all([
+      getRegistrationsForUser(user.id),
+      getComplianceEventsForUser(user.id),
+    ]);
 
-  const systemPrompt = buildAssistantSystemPrompt(registrations, complianceEvents);
-  const stream = await streamAssistantReply(systemPrompt, parsed.data.messages);
+    const systemPrompt = buildAssistantSystemPrompt(registrations, complianceEvents);
+    stream = await streamAssistantReply(systemPrompt, parsed.data.messages);
+  } catch (err) {
+    console.error("Assistant request failed:", err);
+    Sentry.captureException(err);
+    return NextResponse.json({ error: "The assistant is temporarily unavailable. Please try again shortly." }, { status: 502 });
+  }
 
   return new NextResponse(stream, {
     headers: { "Content-Type": "text/plain; charset=utf-8" },

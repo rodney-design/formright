@@ -1,4 +1,5 @@
 import "server-only";
+import * as Sentry from "@sentry/nextjs";
 import { query } from "@/lib/db";
 import type { IrsFiling, IrsFilingStatus, IrsFilingType } from "@/lib/irs-filing/status";
 export type { IrsFiling, IrsFilingStatus, IrsFilingType } from "@/lib/irs-filing/status";
@@ -67,8 +68,18 @@ export async function updateIrsFiling(id: string, update: IrsFilingUpdate): Prom
   );
   const updated = result.rows[0] ?? null;
 
+  // BUG (fixed): this sync used to run unguarded — a failure here (a DB
+  // hiccup, a stale registration_id) threw out of the whole function, so an
+  // admin's EIN update on irs_filings — which had already committed
+  // successfully — came back as a request failure. Isolate it so the
+  // primary write's success isn't held hostage by this secondary one.
   if (updated?.ein) {
-    await query("UPDATE registrations SET ein = $1 WHERE id = $2", [updated.ein, updated.registration_id]);
+    try {
+      await query("UPDATE registrations SET ein = $1 WHERE id = $2", [updated.ein, updated.registration_id]);
+    } catch (err) {
+      console.error(`Failed to sync EIN to registrations for ${updated.registration_id}:`, err);
+      Sentry.captureException(err);
+    }
   }
 
   return updated;

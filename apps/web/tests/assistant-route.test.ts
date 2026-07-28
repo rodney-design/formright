@@ -8,6 +8,7 @@ const getRegistrationsForUserMock = vi.fn();
 const getComplianceEventsForUserMock = vi.fn();
 const buildAssistantSystemPromptMock = vi.fn();
 const streamAssistantReplyMock = vi.fn();
+const captureExceptionMock = vi.fn();
 
 vi.mock("@/lib/auth", () => ({ getCurrentUser: getCurrentUserMock }));
 vi.mock("@/lib/queries/registrations", () => ({ getRegistrationsForUser: getRegistrationsForUserMock }));
@@ -16,6 +17,7 @@ vi.mock("@/lib/assistant", () => ({
   buildAssistantSystemPrompt: buildAssistantSystemPromptMock,
   streamAssistantReply: streamAssistantReplyMock,
 }));
+vi.mock("@sentry/nextjs", () => ({ captureException: captureExceptionMock }));
 
 async function makeRequest(body: unknown) {
   const { NextRequest } = await import("next/server");
@@ -35,6 +37,36 @@ beforeEach(() => {
   getComplianceEventsForUserMock.mockResolvedValue([]);
   buildAssistantSystemPromptMock.mockReturnValue("system prompt");
   streamAssistantReplyMock.mockResolvedValue(new ReadableStream());
+});
+
+// Regression for a real bug: none of the context-fetch/streaming work was
+// wrapped in a try/catch — streamAssistantReply() throwing synchronously
+// (e.g. ANTHROPIC_API_KEY isn't set yet) was an unhandled rejection that
+// fell through to Next's generic error page instead of a clean JSON error,
+// with nothing reported to Sentry.
+describe("POST /api/assistant — error isolation", () => {
+  it("returns a clean 502 (not an unhandled crash) when streamAssistantReply throws", async () => {
+    streamAssistantReplyMock.mockRejectedValue(new Error("ANTHROPIC_API_KEY is not set"));
+
+    const { POST } = await import("@/app/api/assistant/route");
+    const res = await POST(await makeRequest({ messages: [{ role: "user", content: "hi" }] }));
+    const json = await res.json();
+
+    expect(res.status).toBe(502);
+    expect(json.error).toBeTruthy();
+    expect(captureExceptionMock).toHaveBeenCalledWith(expect.any(Error));
+  });
+
+  it("returns a clean 502 when fetching the user's registrations/compliance context fails", async () => {
+    getRegistrationsForUserMock.mockRejectedValue(new Error("DB unreachable"));
+
+    const { POST } = await import("@/app/api/assistant/route");
+    const res = await POST(await makeRequest({ messages: [{ role: "user", content: "hi" }] }));
+
+    expect(res.status).toBe(502);
+    expect(captureExceptionMock).toHaveBeenCalledWith(expect.any(Error));
+    expect(streamAssistantReplyMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("POST /api/assistant — message length cap", () => {
