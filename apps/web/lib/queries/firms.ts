@@ -99,7 +99,29 @@ export async function acceptPendingFirmInvites(userId: string): Promise<string[]
   return result.rows.map((r) => r.firm_id);
 }
 
+// BUG (fixed): nothing stopped a firm_admin from removing the firm's last
+// remaining admin, including themselves — there's no other way to add a
+// member to an *existing* firm (only POST /api/admin/firms, a staff-only
+// route, creates the founding admin at firm creation), so a firm that loses
+// its last admin is permanently locked out of self-service management: no
+// one left who can invite members, revoke API keys, or edit settings.
+export class LastFirmAdminError extends Error {}
+
 export async function removeFirmMember(memberId: string, firmId: string): Promise<boolean> {
+  const target = await query<{ role: FirmRole }>("SELECT role FROM firm_members WHERE id = $1 AND firm_id = $2", [
+    memberId,
+    firmId,
+  ]);
+  if (target.rows[0]?.role === "firm_admin") {
+    const otherAdmins = await query<{ count: string }>(
+      "SELECT COUNT(*) as count FROM firm_members WHERE firm_id = $1 AND role = 'firm_admin' AND id != $2",
+      [firmId, memberId]
+    );
+    if (Number(otherAdmins.rows[0]?.count ?? 0) === 0) {
+      throw new LastFirmAdminError("Cannot remove the firm's last remaining admin");
+    }
+  }
+
   const result = await query("DELETE FROM firm_members WHERE id = $1 AND firm_id = $2", [memberId, firmId]);
   return (result.rowCount ?? 0) > 0;
 }
