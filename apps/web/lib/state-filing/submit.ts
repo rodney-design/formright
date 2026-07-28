@@ -10,14 +10,8 @@ interface RegistrationNotesExtra {
   registeredAgentAddress?: string;
 }
 
-function parseNotes(notes: string | null): RegistrationNotesExtra {
-  if (!notes) return {};
-  try {
-    const parsed = JSON.parse(notes);
-    return typeof parsed === "object" && parsed !== null ? parsed : {};
-  } catch {
-    return {};
-  }
+function parseNotes(notes: Record<string, unknown> | null): RegistrationNotesExtra {
+  return (notes ?? {}) as RegistrationNotesExtra;
 }
 
 // Called right after ensureStateFiling(). If a vendor is configured and

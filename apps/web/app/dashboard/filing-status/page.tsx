@@ -1,4 +1,4 @@
-import { getCurrentUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { getRegistrationsForUser } from "@/lib/queries/registrations";
 import { getStateFilingForRegistration } from "@/lib/queries/stateFilings";
 import { getRegisteredAgentOrderForRegistration } from "@/lib/queries/registeredAgent";
@@ -46,8 +46,8 @@ function stepIndex(status: string) {
 }
 
 export default async function FilingStatusPage() {
-  const user = await getCurrentUser();
-  const registrations = await getRegistrationsForUser(user!.id);
+  const user = await requireUser();
+  const registrations = await getRegistrationsForUser(user.id);
   const active = registrations[0];
 
   if (!active) {

@@ -1,4 +1,4 @@
-import { getCurrentUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { getPaymentsForUser, getRegistrationsForUser } from "@/lib/queries/registrations";
 import { getSubscriptionsForUser } from "@/lib/queries/subscriptions";
 import ComplySubscribeButton from "@/components/dashboard/ComplySubscribeButton";
@@ -15,11 +15,11 @@ export default async function BillingPage({
 }: {
   searchParams: { comply?: string };
 }) {
-  const user = await getCurrentUser();
+  const user = await requireUser();
   const [payments, registrations, subscriptions] = await Promise.all([
-    getPaymentsForUser(user!.id),
-    getRegistrationsForUser(user!.id),
-    getSubscriptionsForUser(user!.id),
+    getPaymentsForUser(user.id),
+    getRegistrationsForUser(user.id),
+    getSubscriptionsForUser(user.id),
   ]);
   const regById = new Map(registrations.map((r) => [r.id, r]));
   const comply = subscriptions.find((s) => s.plan === "comply");

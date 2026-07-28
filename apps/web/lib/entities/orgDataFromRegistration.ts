@@ -15,7 +15,9 @@ export interface RegistrationRow {
   contact_name: string | null;
   contact_email: string | null;
   board: { name: string; role: string; email?: string }[] | null;
-  notes: string | null;
+  // JSONB — the pg driver hands this back already parsed (or null), never a
+  // raw string. See db/migrations/019_registrations_notes_jsonb.sql.
+  notes: Record<string, unknown> | null;
 }
 
 interface RegistrationNotes {
@@ -26,14 +28,8 @@ interface RegistrationNotes {
   nonprofitSubtype?: string;
 }
 
-function parseNotes(notes: string | null): RegistrationNotes {
-  if (!notes) return {};
-  try {
-    const parsed = JSON.parse(notes);
-    return typeof parsed === "object" && parsed !== null ? parsed : {};
-  } catch {
-    return {};
-  }
+function parseNotes(notes: Record<string, unknown> | null): RegistrationNotes {
+  return (notes ?? {}) as RegistrationNotes;
 }
 
 // Maps a `registrations` DB row to the OrgData shape the ported doc-engine

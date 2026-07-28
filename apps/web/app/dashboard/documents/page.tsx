@@ -1,14 +1,14 @@
-import { getCurrentUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { getRegistrationsForUser } from "@/lib/queries/registrations";
 import { getVaultDocumentsForUser } from "@/lib/queries/documents";
 import { getDocsForEntity } from "@/lib/entities/entityDocsMap";
 import DownloadButton from "@/components/dashboard/DownloadButton";
 
 export default async function DocumentsPage() {
-  const user = await getCurrentUser();
+  const user = await requireUser();
   const [registrations, vaultDocuments] = await Promise.all([
-    getRegistrationsForUser(user!.id),
-    getVaultDocumentsForUser(user!.id),
+    getRegistrationsForUser(user.id),
+    getVaultDocumentsForUser(user.id),
   ]);
   const active = registrations[0];
 

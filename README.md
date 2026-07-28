@@ -30,6 +30,15 @@ createdb formright
 psql formright -f ../db/schema.sql
 ```
 
+**Use `db/schema.sql` for this — not `db/migrations/`.** `schema.sql` is the canonical,
+always-current schema and the only supported path for a fresh install. `db/migrations/*.sql`
+are historical documentation of how each feature's tables were originally added (and are cited
+by file throughout this README for that reason) — they are not a real incremental chain you can
+replay against an existing database. In particular, `001_init.sql` itself pulls in the entire
+current `schema.sql` (not just what Phase 1 looked like), so running any later migration after
+it fails with "already exists." Don't run `schema.sql` and the migrations directory against the
+same database.
+
 ### Environment variables
 
 See `.env.example`. All of these are required for the app to function; nothing is hardcoded.
@@ -75,6 +84,21 @@ apps/web/
 db/
   schema.sql              Phase 1 schema (users, sessions, registrations, payments, documents)
 ```
+
+## Authorization model
+
+There is no `middleware.ts` — access control is entirely layout- and route-level: each of
+`app/dashboard/layout.tsx`, `app/admin/layout.tsx`, `app/firm/layout.tsx`, and
+`app/contractor/layout.tsx` independently calls `getCurrentUser()`/`requireUser()` and redirects
+or blocks rendering if the session doesn't qualify (right role, right membership). API routes
+each call the matching `require*()` guard from `lib/auth.ts` themselves — there's no shared
+request-level gate.
+
+This is a normal, supported pattern in the App Router, but it has one sharp edge: **any new page
+added under `/dashboard`, `/admin`, `/firm`, or `/contractor` only inherits that layout's
+authorization if it's actually nested under that layout's route segment.** A page created outside
+that nesting (or a layout accidentally bypassed, e.g. via a route group that escapes it) ships
+with no authorization at all — there's no middleware to catch what a layout missed.
 
 ## Known debt fixed during this port (per build-order doc §6)
 

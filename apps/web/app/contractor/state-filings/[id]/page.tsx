@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth";
+import { requireContractor } from "@/lib/auth";
 import { getContractorByUserId, getChecklistItemsForStateFiling, ensureChecklistForStateFiling } from "@/lib/queries/contractors";
 import { getStateFilingById } from "@/lib/queries/stateFilings";
 import { getRegistrationById } from "@/lib/queries/registrations";
@@ -8,8 +8,8 @@ import ChecklistPanel from "@/components/contractor/ChecklistPanel";
 import StateFilingContractorForm from "@/components/contractor/StateFilingContractorForm";
 
 export default async function ContractorStateFilingDetailPage({ params }: { params: { id: string } }) {
-  const user = await getCurrentUser();
-  const contractor = await getContractorByUserId(user!.id);
+  const user = await requireContractor();
+  const contractor = await getContractorByUserId(user.id);
   const filing = await getStateFilingById(params.id);
 
   if (!contractor || !filing || filing.assigned_contractor_id !== contractor.id) {
