@@ -1,15 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
-import { query } from "@/lib/db";
+import { query, withTransaction } from "@/lib/db";
 import { getStripe } from "@/lib/stripe";
 import { entityFamily } from "@/lib/entities/entityFamily";
 import { getStateFeeForEntity } from "@/lib/entities/stateFeesTable";
+import { isValidState } from "@/lib/entities/stateFees";
 import { ADDONS, getPlansForEntity } from "@/lib/entities/pricing";
-import { generateRegistrationId } from "@/lib/registrationId";
+import { insertRegistrationWithUniqueId } from "@/lib/registrationId";
 import { seedComplianceEventsForRegistration } from "@/lib/entities/complianceRulesTable";
+import { checkRateLimit, getClientIp, RateLimitError } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
+
+// Unauthenticated — anyone can POST here, and each call writes a users row,
+// a registrations row, and compliance events even before Stripe is involved.
+// Without a limit this is trivially scriptable DB pollution.
+const PER_IP_LIMIT_PER_MINUTE = 10;
 
 const boardMemberSchema = z.object({
   name: z.string(),
@@ -20,7 +27,7 @@ const boardMemberSchema = z.object({
 const checkoutSchema = z.object({
   orgname: z.string().min(1),
   orgtype: z.string().min(1),
-  state: z.string().min(1),
+  state: z.string().min(1).refine(isValidState, { message: "Unrecognized state" }),
   fiscal: z.string().optional().default(""),
   address: z.string().min(1),
   city: z.string().min(1),
@@ -46,6 +53,18 @@ const checkoutSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  try {
+    checkRateLimit(`checkout:ip:${getClientIp(req)}`, PER_IP_LIMIT_PER_MINUTE);
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again shortly." },
+        { status: 429, headers: { "Retry-After": String(err.retryAfterSeconds) } }
+      );
+    }
+    throw err;
+  }
+
   const body = await req.json().catch(() => null);
   const parsed = checkoutSchema.safeParse(body);
   if (!parsed.success) {
@@ -91,7 +110,6 @@ export async function POST(req: NextRequest) {
     userId = inserted.rows[0].id;
   }
 
-  const registrationId = generateRegistrationId();
   const notes = JSON.stringify({
     orgtypeRaw: data.orgtype,
     nonprofitSubtype: data.caNonprofitSubtype,
@@ -108,38 +126,61 @@ export async function POST(req: NextRequest) {
     phone: data.phone,
   });
 
-  await query(
-    `INSERT INTO registrations
-       (id, user_id, orgname, entity_type, state, plan, status, amount_cents, state_fee_cents,
-        board, mission, contact_name, contact_email, address, ein, fiscal_year, notes)
-     VALUES ($1,$2,$3,$4,$5,$6,'pending',$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
-    [
-      registrationId,
-      userId,
-      data.orgname,
-      family,
-      data.state,
-      plan.name,
-      totalCents,
-      stateFeeCents,
-      JSON.stringify(data.board),
-      data.mission,
-      `${data.fname} ${data.lname}`.trim(),
-      data.email,
-      JSON.stringify({ address: data.address, city: data.city, zip: data.zip }),
-      data.ein,
-      data.fiscal,
-      notes,
-    ]
+  const { id: registrationId } = await insertRegistrationWithUniqueId((id) =>
+    query(
+      `INSERT INTO registrations
+         (id, user_id, orgname, entity_type, state, plan, status, amount_cents, state_fee_cents,
+          board, mission, contact_name, contact_email, address, ein, fiscal_year, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,'pending',$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+      [
+        id,
+        userId,
+        data.orgname,
+        family,
+        data.state,
+        plan.name,
+        totalCents,
+        stateFeeCents,
+        JSON.stringify(data.board),
+        data.mission,
+        `${data.fname} ${data.lname}`.trim(),
+        data.email,
+        JSON.stringify({ address: data.address, city: data.city, zip: data.zip }),
+        data.ein,
+        data.fiscal,
+        notes,
+      ]
+    )
   );
 
-  const complianceEvents = await seedComplianceEventsForRegistration(family, data.state, new Date(), data.fiscal);
-  for (const event of complianceEvents) {
-    await query(
-      `INSERT INTO compliance_events (registration_id, event_type, due_date)
-       VALUES ($1, $2, $3)`,
-      [registrationId, event.eventType, event.dueDate]
-    );
+  try {
+    const complianceEvents = await seedComplianceEventsForRegistration(family, data.state, new Date(), data.fiscal);
+    // All-or-nothing: a partial insert (event 2 of 3 failing) would otherwise
+    // leave an inconsistent set of compliance events attached to a
+    // registration that hasn't even reached Stripe yet.
+    await withTransaction(async (tx) => {
+      for (const event of complianceEvents) {
+        await tx.query(
+          `INSERT INTO compliance_events (registration_id, event_type, due_date)
+           VALUES ($1, $2, $3)`,
+          [registrationId, event.eventType, event.dueDate]
+        );
+      }
+    });
+  } catch (err) {
+    // Same rollback shape as the Stripe-session-creation failure below — this
+    // failure happens before Stripe is even involved, so it needs its own
+    // cleanup rather than leaving an orphaned 'pending' registration.
+    console.error(`Failed to seed compliance events for ${registrationId}:`, err);
+    Sentry.captureException(err);
+    try {
+      await query("DELETE FROM compliance_events WHERE registration_id = $1", [registrationId]);
+      await query("DELETE FROM registrations WHERE id = $1", [registrationId]);
+    } catch (cleanupErr) {
+      console.error(`Failed to roll back orphaned registration ${registrationId}:`, cleanupErr);
+      Sentry.captureException(cleanupErr);
+    }
+    return NextResponse.json({ error: "Could not create checkout session" }, { status: 502 });
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? req.nextUrl.origin;

@@ -24,21 +24,30 @@ function jwtSecret(): string {
 // ── Magic link request/verify ──────────────────────────────────────────────
 // Replaces the prototype's demo bypass (any email/password → dashboard).
 
+// Only the hash is ever persisted (users.magic_link_token) — same pattern as
+// lib/queries/apiKeys.ts — so a DB read (leak, backup exposure, SQL-read
+// compromise) can't be turned into a one-click account takeover the way a
+// plaintext token could.
+function hashToken(rawToken: string): string {
+  return crypto.createHash("sha256").update(rawToken).digest("hex");
+}
+
 export async function createMagicLinkToken(email: string, name?: string): Promise<string> {
   const token = crypto.randomBytes(32).toString("hex");
+  const tokenHash = hashToken(token);
   const expiry = new Date(Date.now() + MAGIC_LINK_TTL_MS);
 
   const existing = await query<{ id: string }>("SELECT id FROM users WHERE email = $1", [email]);
   if (existing.rows.length > 0) {
     await query("UPDATE users SET magic_link_token = $1, token_expiry = $2 WHERE email = $3", [
-      token,
+      tokenHash,
       expiry,
       email,
     ]);
   } else {
     await query(
       "INSERT INTO users (email, name, magic_link_token, token_expiry) VALUES ($1, $2, $3, $4)",
-      [email, name ?? null, token, expiry]
+      [email, name ?? null, tokenHash, expiry]
     );
   }
   return token;
@@ -53,7 +62,7 @@ export async function consumeMagicLinkToken(token: string): Promise<SessionUser 
     token_expiry: string;
   }>(
     "SELECT id, email, name, role, token_expiry FROM users WHERE magic_link_token = $1",
-    [token]
+    [hashToken(token)]
   );
   const user = result.rows[0];
   if (!user) return null;

@@ -1,5 +1,6 @@
 import "server-only";
 import { query } from "@/lib/db";
+import { fetchExternalImageSafely } from "@/lib/ssrfGuard";
 import type { DocBranding } from "./types";
 
 type LogoType = "png" | "jpg" | "gif" | "bmp";
@@ -31,16 +32,17 @@ export async function getFirmBrandingForRegistration(firmId: string | null | und
 
   const logoUrl = firm.branding?.logoUrl;
   if (logoUrl) {
-    try {
-      const res = await fetch(logoUrl);
-      const contentType = res.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
+    // A firm admin controls this URL — fetchExternalImageSafely enforces
+    // https, resolves DNS and rejects private/link-local/metadata addresses
+    // (e.g. 169.254.169.254), caps the response size, and times out, so this
+    // can't be turned into SSRF against internal services.
+    const fetched = await fetchExternalImageSafely(logoUrl);
+    if (fetched) {
+      const contentType = fetched.contentType?.split(";")[0].trim().toLowerCase();
       const type = contentType ? CONTENT_TYPE_MAP[contentType] : undefined;
-      if (res.ok && type) {
-        branding.logoImage = { data: Buffer.from(await res.arrayBuffer()), type };
+      if (type) {
+        branding.logoImage = { data: fetched.bytes, type };
       }
-    } catch {
-      // Fall back to text-only branding — a bad logo URL shouldn't block
-      // document generation.
     }
   }
 

@@ -87,21 +87,83 @@ export async function getFirmMembers(firmId: string): Promise<FirmMember[]> {
   return result.rows;
 }
 
-// "accepted on login" half of the invitation/handoff flow (build-order doc
-// §Phase 4 step 5) — called from /api/auth/verify on every successful
-// magic-link login. Returns the firm_ids that gained a member, so the caller
-// can resync per-seat billing quantity (build-order doc §Phase 4 step 4).
-export async function acceptPendingFirmInvites(userId: string): Promise<string[]> {
-  const result = await query<{ firm_id: string }>(
-    "UPDATE firm_members SET joined_at = now() WHERE user_id = $1 AND joined_at IS NULL RETURNING firm_id",
-    [userId]
-  );
-  return result.rows.map((r) => r.firm_id);
+export interface PendingFirmInvite {
+  firm: Firm;
+  role: FirmRole;
 }
 
-export async function removeFirmMember(memberId: string, firmId: string): Promise<boolean> {
-  const result = await query("DELETE FROM firm_members WHERE id = $1 AND firm_id = $2", [memberId, firmId]);
+// Pending invites for a user — one per firm that has invited this email and
+// hasn't been accepted or declined yet. Surfaced explicitly (see
+// acceptFirmInvite/declineFirmInvite below) rather than auto-joined on login:
+// a firm admin can invite any email address, and silently joining the firm
+// the moment that person next logs in *for any reason* — even to check their
+// own unrelated retail account — used to redirect them into the firm
+// dashboard and increase the firm's Stripe seat bill with no consent step.
+export async function getPendingFirmInvitesForUser(userId: string): Promise<PendingFirmInvite[]> {
+  const result = await query<{
+    id: string;
+    name: string;
+    branding: FirmBranding | null;
+    created_at: string;
+    role: FirmRole;
+  }>(
+    `SELECT f.id, f.name, f.branding, f.created_at, fm.role
+     FROM firm_members fm
+     JOIN firms f ON f.id = fm.firm_id
+     WHERE fm.user_id = $1 AND fm.joined_at IS NULL
+     ORDER BY fm.invited_at ASC`,
+    [userId]
+  );
+  return result.rows.map((row) => ({
+    firm: { id: row.id, name: row.name, branding: row.branding, created_at: row.created_at },
+    role: row.role,
+  }));
+}
+
+// Explicit accept — only called from a user-initiated "Join {firm}?"
+// confirmation, never automatically. Syncing seat quantity is the caller's
+// responsibility (mirrors the existing convention in /api/auth/verify).
+export async function acceptFirmInvite(userId: string, firmId: string): Promise<boolean> {
+  const result = await query(
+    "UPDATE firm_members SET joined_at = now() WHERE user_id = $1 AND firm_id = $2 AND joined_at IS NULL",
+    [userId, firmId]
+  );
   return (result.rowCount ?? 0) > 0;
+}
+
+export async function declineFirmInvite(userId: string, firmId: string): Promise<boolean> {
+  const result = await query(
+    "DELETE FROM firm_members WHERE user_id = $1 AND firm_id = $2 AND joined_at IS NULL",
+    [userId, firmId]
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+export async function removeFirmMember(
+  memberId: string,
+  firmId: string
+): Promise<{ ok: boolean; error?: "not_found" | "last_admin" }> {
+  const member = await query<{ role: FirmRole; joined_at: string | null }>(
+    "SELECT role, joined_at FROM firm_members WHERE id = $1 AND firm_id = $2",
+    [memberId, firmId]
+  );
+  const row = member.rows[0];
+  if (!row) return { ok: false, error: "not_found" };
+
+  // Removing the last active admin would orphan the firm — nobody left who
+  // can invite/remove members or manage billing.
+  if (row.role === "firm_admin" && row.joined_at !== null) {
+    const adminCount = await query<{ count: string }>(
+      "SELECT COUNT(*) as count FROM firm_members WHERE firm_id = $1 AND role = 'firm_admin' AND joined_at IS NOT NULL",
+      [firmId]
+    );
+    if (Number(adminCount.rows[0]?.count ?? 0) <= 1) {
+      return { ok: false, error: "last_admin" };
+    }
+  }
+
+  const result = await query("DELETE FROM firm_members WHERE id = $1 AND firm_id = $2", [memberId, firmId]);
+  return { ok: (result.rowCount ?? 0) > 0 };
 }
 
 export async function countActiveFirmMembers(firmId: string): Promise<number> {

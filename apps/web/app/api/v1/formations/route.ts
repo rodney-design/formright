@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { query } from "@/lib/db";
 import { requireApiKeyFirm, ApiAuthError, RateLimitError } from "@/lib/apiAuth";
-import { entityFamily } from "@/lib/entities/entityFamily";
+import { tryEntityFamily } from "@/lib/entities/entityFamily";
 import { getStateFeeForEntity } from "@/lib/entities/stateFeesTable";
-import { generateRegistrationId } from "@/lib/registrationId";
+import { isValidState } from "@/lib/entities/stateFees";
+import { insertRegistrationWithUniqueId } from "@/lib/registrationId";
 import { seedComplianceEventsForRegistration } from "@/lib/entities/complianceRulesTable";
 import { ensureStateFiling } from "@/lib/queries/stateFilings";
 import { getRegistrationsForFirm } from "@/lib/queries/registrations";
@@ -28,7 +29,7 @@ const boardMemberSchema = z.object({
 const formationSchema = z.object({
   orgname: z.string().min(1),
   orgtype: z.string().min(1),
-  state: z.string().min(1),
+  state: z.string().min(1).refine(isValidState, { message: "Unrecognized state" }),
   fiscal: z.string().optional().default(""),
   address: z.string().min(1),
   city: z.string().min(1),
@@ -61,7 +62,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid request", details: parsed.error.flatten() }, { status: 400 });
   }
   const data = parsed.data;
-  const family = entityFamily(data.orgtype);
+  const family = tryEntityFamily(data.orgtype);
+  if (!family) {
+    return NextResponse.json(
+      {
+        error: "Unrecognized orgtype",
+        accepted: ["llc", "ccorp", "scorp", "nonprofit", "benefit", "pc", "sole"],
+      },
+      { status: 400 }
+    );
+  }
 
   const stateFeeDetail = await getStateFeeForEntity(data.state, family);
   const stateFeeCents = stateFeeDetail?.feeCents ?? 0;
@@ -78,32 +88,33 @@ export async function POST(req: NextRequest) {
     userId = inserted.rows[0].id;
   }
 
-  const registrationId = generateRegistrationId();
   const notes = JSON.stringify({ orgtypeRaw: data.orgtype, source: "api_v1" });
 
-  await query(
-    `INSERT INTO registrations
-       (id, user_id, firm_id, orgname, entity_type, state, plan, status, amount_cents, state_fee_cents,
-        board, mission, contact_name, contact_email, address, ein, fiscal_year, notes)
-     VALUES ($1,$2,$3,$4,$5,$6,'Pro (API)','paid',$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
-    [
-      registrationId,
-      userId,
-      firmId,
-      data.orgname,
-      family,
-      data.state,
-      stateFeeCents,
-      stateFeeCents,
-      JSON.stringify(data.board),
-      data.mission,
-      data.contactName,
-      data.contactEmail,
-      JSON.stringify({ address: data.address, city: data.city, zip: data.zip }),
-      data.ein,
-      data.fiscal,
-      notes,
-    ]
+  const { id: registrationId } = await insertRegistrationWithUniqueId((id) =>
+    query(
+      `INSERT INTO registrations
+         (id, user_id, firm_id, orgname, entity_type, state, plan, status, amount_cents, state_fee_cents,
+          board, mission, contact_name, contact_email, address, ein, fiscal_year, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,'Pro (API)','paid',$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+      [
+        id,
+        userId,
+        firmId,
+        data.orgname,
+        family,
+        data.state,
+        stateFeeCents,
+        stateFeeCents,
+        JSON.stringify(data.board),
+        data.mission,
+        data.contactName,
+        data.contactEmail,
+        JSON.stringify({ address: data.address, city: data.city, zip: data.zip }),
+        data.ein,
+        data.fiscal,
+        notes,
+      ]
+    )
   );
 
   for (const event of await seedComplianceEventsForRegistration(family, data.state, new Date(), data.fiscal)) {

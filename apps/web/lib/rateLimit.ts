@@ -34,8 +34,13 @@ function currentLimit(): number {
 // single-instance deployment, but this Map isn't shared across server
 // instances — swap for a Redis-backed limiter (e.g. Upstash) before scaling
 // horizontally, or the effective limit becomes "N x instance count".
-export function checkRateLimit(key: string): void {
-  const limit = currentLimit();
+//
+// `limitOverride` lets callers outside the v1 API (which use the shared
+// API_RATE_LIMIT_PER_MINUTE budget) apply a tighter, purpose-specific limit
+// against the same sliding-window bucket store — e.g. magic-link requests
+// per email, which should never need 100/minute.
+export function checkRateLimit(key: string, limitOverride?: number): void {
+  const limit = limitOverride ?? currentLimit();
   const buckets = getBuckets();
   const now = Date.now();
   const windowStart = now - WINDOW_MS;
@@ -51,4 +56,15 @@ export function checkRateLimit(key: string): void {
 
   timestamps.push(now);
   buckets.set(key, timestamps);
+}
+
+// Best-effort client IP from proxy headers, for rate-limiting keys on
+// unauthenticated routes that have no API-key/firm identity to key on.
+// Spoofable by a direct client (there's no trusted-proxy allowlist here), but
+// this is a courtesy throttle against casual abuse, not the security boundary
+// — the per-email key alongside it is what actually bounds damage.
+export function getClientIp(req: { headers: { get(name: string): string | null } }): string {
+  const forwardedFor = req.headers.get("x-forwarded-for");
+  if (forwardedFor) return forwardedFor.split(",")[0].trim();
+  return req.headers.get("x-real-ip") ?? "unknown";
 }

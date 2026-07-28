@@ -67,7 +67,7 @@ export default async function AdminRegistrationDetailPage({ params }: { params: 
         </div>
       </div>
 
-      <AdminRegDetailForm id={reg.id} status={reg.status} notes={reg.notes ?? ""} />
+      <AdminRegDetailForm id={reg.id} status={reg.status} adminNotes={reg.admin_notes ?? ""} />
 
       {stateFiling && (
         <StateFilingPanel filing={stateFiling} worksheet={buildFilingWorksheet(reg)} contractors={activeContractors} />

@@ -10,6 +10,7 @@ export interface Registration extends RegistrationRow {
   state_fee_cents: number | null;
   created_at: string;
   firm_id: string | null;
+  admin_notes: string | null;
 }
 
 export async function getRegistrationsForUser(userId: string): Promise<Registration[]> {

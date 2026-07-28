@@ -48,6 +48,7 @@ See `.env.example`. All of these are required for the app to function; nothing i
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Supabase Storage access for the document vault (Phase 2). The service-role key bypasses row-level security for server-side access to a private bucket — never expose it to the client. |
 | `SUPABASE_STORAGE_BUCKET` | Bucket generated documents are uploaded to |
 | `CRON_SECRET` | Shared secret the compliance-reminder cron route checks against the `Authorization: Bearer` header the Netlify Scheduled Function sends |
+| `ANTHROPIC_API_KEY` | Required by `lib/assistant.ts` — without it, `POST /api/assistant` (and the `/dashboard/assistant` page it backs) errors on every request |
 
 ### Promoting a user to admin
 

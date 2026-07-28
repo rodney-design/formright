@@ -10,7 +10,13 @@ const queryMock = vi.fn();
 const createSessionMock = vi.fn();
 const captureExceptionMock = vi.fn();
 
-vi.mock("@/lib/db", () => ({ query: queryMock }));
+vi.mock("@/lib/db", () => ({
+  query: queryMock,
+  // Routes the transaction's queries through the same queryMock so tests
+  // don't need a separate fake client — good enough for these tests, which
+  // only assert on which SQL ran, not on real commit/rollback semantics.
+  withTransaction: (fn: (tx: { query: typeof queryMock }) => unknown) => fn({ query: queryMock }),
+}));
 vi.mock("@/lib/stripe", () => ({
   getStripe: () => ({ checkout: { sessions: { create: createSessionMock } } }),
 }));

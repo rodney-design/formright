@@ -1,6 +1,21 @@
 import "server-only";
 import sgMail from "@sendgrid/mail";
 
+// Every email HTML body below interpolates values a user ultimately
+// controls (org name from the onboarding wizard, firm name, inviter email).
+// Without escaping, an org name like `<a href="https://evil...">Verify your
+// payment</a>` would render as a live link in mail sent from FormRight's
+// verified SendGrid domain — a phishing vector. Plain-text bodies don't need
+// this; only apply it to values interpolated into `html`.
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 let initialized = false;
 
 function ensureInitialized() {
@@ -25,7 +40,7 @@ export async function sendFirmInviteEmail(to: string, firmName: string, inviterE
     from: fromAddress(),
     subject: `You've been invited to ${firmName} on FormRight`,
     text: `${inviterEmail} invited you to join ${firmName}'s team on FormRight. Sign in with this email address to accept: ${appUrl}/auth/login`,
-    html: `<p><strong>${inviterEmail}</strong> invited you to join <strong>${firmName}</strong>'s team on FormRight.</p><p>Sign in with this email address to accept: <a href="${appUrl}/auth/login">${appUrl}/auth/login</a></p>`,
+    html: `<p><strong>${escapeHtml(inviterEmail)}</strong> invited you to join <strong>${escapeHtml(firmName)}</strong>'s team on FormRight.</p><p>Sign in with this email address to accept: <a href="${appUrl}/auth/login">${appUrl}/auth/login</a></p>`,
   });
 }
 
@@ -68,7 +83,7 @@ export async function sendComplianceReminderEmail(
     from: fromAddress(),
     subject: `${label} due in ${daysUntil} days — ${orgName}`,
     text: `Reminder: ${orgName}'s ${label} is due on ${formattedDate} (${daysUntil} days from now). Check your compliance calendar: ${appUrl}/dashboard`,
-    html: `<p>Reminder: <strong>${orgName}</strong>'s <strong>${label}</strong> is due on <strong>${formattedDate}</strong> (${daysUntil} days from now).</p><p>Check your <a href="${appUrl}/dashboard">compliance calendar</a>.</p>`,
+    html: `<p>Reminder: <strong>${escapeHtml(orgName)}</strong>'s <strong>${label}</strong> is due on <strong>${formattedDate}</strong> (${daysUntil} days from now).</p><p>Check your <a href="${appUrl}/dashboard">compliance calendar</a>.</p>`,
   });
 }
 
@@ -88,6 +103,6 @@ export async function sendRegistrationConfirmationEmail(
     from: fromAddress(),
     subject: `Your FormRight Registration — ${orgName}`,
     text: `Thanks for choosing FormRight! Your registration ${registrationId} for ${orgName} has been received and payment confirmed. Track its status in your dashboard: ${appUrl}/dashboard\n\nDon't miss a deadline — add FormRight Comply for automatic compliance reminders: ${complyUrl}`,
-    html: `<p>Thanks for choosing FormRight! Your registration <strong>${registrationId}</strong> for <strong>${orgName}</strong> has been received and payment confirmed.</p><p>Track its status in your <a href="${appUrl}/dashboard">dashboard</a>.</p><p style="margin-top:24px;padding:16px;border:1px solid #00897B;border-radius:8px;"><strong>Don't miss your first compliance deadline.</strong><br/>FormRight Comply tracks your annual report and IRS deadlines automatically, with reminders 90/60/30 days out.</p><p><a href="${complyUrl}" style="display:inline-block;background:#00897B;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600;">Add FormRight Comply — $149/yr</a></p>`,
+    html: `<p>Thanks for choosing FormRight! Your registration <strong>${escapeHtml(registrationId)}</strong> for <strong>${escapeHtml(orgName)}</strong> has been received and payment confirmed.</p><p>Track its status in your <a href="${appUrl}/dashboard">dashboard</a>.</p><p style="margin-top:24px;padding:16px;border:1px solid #00897B;border-radius:8px;"><strong>Don't miss your first compliance deadline.</strong><br/>FormRight Comply tracks your annual report and IRS deadlines automatically, with reminders 90/60/30 days out.</p><p><a href="${complyUrl}" style="display:inline-block;background:#00897B;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600;">Add FormRight Comply — $149/yr</a></p>`,
   });
 }

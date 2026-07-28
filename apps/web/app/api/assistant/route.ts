@@ -4,15 +4,22 @@ import { getCurrentUser } from "@/lib/auth";
 import { getRegistrationsForUser } from "@/lib/queries/registrations";
 import { getComplianceEventsForUser } from "@/lib/queries/complianceEvents";
 import { buildAssistantSystemPrompt, streamAssistantReply } from "@/lib/assistant";
+import { checkRateLimit, RateLimitError } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
+
+// The zod schema already capped message *count* at 40, but not size — an
+// unbounded message length is a real cost-abuse surface against an
+// Opus-class streaming completion with no other guard.
+const MAX_MESSAGE_LENGTH = 4000;
+const PER_USER_LIMIT_PER_MINUTE = 15;
 
 const requestSchema = z.object({
   messages: z
     .array(
       z.object({
         role: z.enum(["user", "assistant"]),
-        content: z.string().min(1),
+        content: z.string().min(1).max(MAX_MESSAGE_LENGTH),
       })
     )
     .min(1)
@@ -25,6 +32,18 @@ const requestSchema = z.object({
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  try {
+    checkRateLimit(`assistant:${user.id}`, PER_USER_LIMIT_PER_MINUTE);
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return NextResponse.json(
+        { error: "Too many requests. Please slow down." },
+        { status: 429, headers: { "Retry-After": String(err.retryAfterSeconds) } }
+      );
+    }
+    throw err;
+  }
 
   const body = await req.json().catch(() => null);
   const parsed = requestSchema.safeParse(body);

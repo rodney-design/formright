@@ -1,6 +1,6 @@
 import "server-only";
 import { query } from "@/lib/db";
-import { getStripe } from "@/lib/stripe";
+import { getStripe, getSingleSubscriptionItem } from "@/lib/stripe";
 import { countActiveFirmMembers } from "@/lib/queries/firms";
 
 export interface FirmSubscription {
@@ -59,7 +59,7 @@ export async function syncFirmSeatQuantity(firmId: string): Promise<void> {
 
   const stripe = getStripe();
   const stripeSub = await stripe.subscriptions.retrieve(subscription.stripe_subscription_id);
-  const item = stripeSub.items.data[0];
+  const item = getSingleSubscriptionItem(stripeSub);
   if (!item) return;
 
   await stripe.subscriptionItems.update(item.id, { quantity: seats });
