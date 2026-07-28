@@ -114,10 +114,28 @@ function calculateFiscalYearOffsetDate(
   const build = (year: number) =>
     offsetDay == null ? new Date(year, dueMonth + 1, 0) : new Date(year, dueMonth, offsetDay);
 
-  let dueYear = formedAt.getFullYear() + yearOffset;
+  // BUG (fixed): this used to only check whether the computed DUE DATE was
+  // already past formedAt before rolling forward a year — that's not the
+  // same as checking whether the FISCAL YEAR END it's based on already
+  // passed. A large offsetMonths can push the due date past formedAt even
+  // when the underlying fiscal year end predates formation. Concretely: FYE
+  // June 30, formed Aug 15 — June 30 of that same calendar year already
+  // passed *before the entity existed*, but the resulting "Nov 15" due date
+  // (5 months later) still looks like it's in the future, so the old guard
+  // never fired and the function returned a date computed from a fiscal
+  // year the entity was never part of, up to a year too early. Fix:
+  // explicitly check whether the fiscal year end itself is at or before
+  // formation and roll the reference year forward first.
+  let baseYear = formedAt.getFullYear();
+  const fiscalYearEnd = (year: number) => new Date(year, fyEndMonth + 1, 0); // last day of fyEndMonth
+  if (fiscalYearEnd(baseYear) <= formedAt) {
+    baseYear += 1;
+  }
+
+  let dueYear = baseYear + yearOffset;
   let candidate = build(dueYear);
   if (candidate <= formedAt) {
-    dueYear = formedAt.getFullYear() + 1 + yearOffset;
+    dueYear += 1;
     candidate = build(dueYear);
   }
   return candidate;
@@ -197,8 +215,20 @@ export function calculateAnnualReportDueDate(
   if (rule.ruleType === "anniversary_exact_date") {
     // Due on the exact calendar date of formation, 1 year out (e.g.
     // Massachusetts LLCs — not month-end, the literal anniversary).
+    //
+    // BUG (fixed): `new Date(year, month, day)` silently rolls over into the
+    // next month when `day` doesn't exist in the target month/year — an
+    // entity formed Feb 29 (leap year) landing its due date in a non-leap
+    // year used to come back as March 1, not Feb 29/28, because JS's Date
+    // constructor never throws on an out-of-range day. Clamp to the last
+    // valid day of the target month instead, so a Feb 29 anniversary is due
+    // Feb 28 in a non-leap year rather than silently jumping a day into
+    // March.
     const yearsOut = rule.cadence === "biennial" ? 2 : 1;
-    return new Date(formedAt.getFullYear() + yearsOut, formedAt.getMonth(), formedAt.getDate());
+    const dueYear = formedAt.getFullYear() + yearsOut;
+    const daysInDueMonth = new Date(dueYear, formedAt.getMonth() + 1, 0).getDate();
+    const day = Math.min(formedAt.getDate(), daysInDueMonth);
+    return new Date(dueYear, formedAt.getMonth(), day);
   }
 
   if (rule.ruleType === "fiscal_year_offset") {

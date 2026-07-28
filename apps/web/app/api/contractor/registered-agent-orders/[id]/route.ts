@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireContractor } from "@/lib/auth";
 import { getContractorByUserId } from "@/lib/queries/contractors";
-import { getRegisteredAgentOrderById, updateRegisteredAgentOrder } from "@/lib/queries/registeredAgent";
+import {
+  getRegisteredAgentOrderById,
+  updateRegisteredAgentOrder,
+  MissingProviderConfirmationError,
+} from "@/lib/queries/registeredAgent";
 import { REGISTERED_AGENT_STATUSES, type RegisteredAgentStatus } from "@/lib/registered-agent/status";
 
 export const runtime = "nodejs";
@@ -36,7 +40,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     update.providerConfirmationId = body.providerConfirmationId;
   }
 
-  const updated = await updateRegisteredAgentOrder(params.id, update);
+  let updated;
+  try {
+    updated = await updateRegisteredAgentOrder(params.id, update);
+  } catch (err) {
+    if (err instanceof MissingProviderConfirmationError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
+    throw err;
+  }
   if (!updated) {
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
   }

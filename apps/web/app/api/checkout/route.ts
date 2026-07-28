@@ -6,7 +6,7 @@ import { getStripe } from "@/lib/stripe";
 import { entityFamily } from "@/lib/entities/entityFamily";
 import { getStateFeeForEntity } from "@/lib/entities/stateFeesTable";
 import { ADDONS, getPlansForEntity } from "@/lib/entities/pricing";
-import { generateRegistrationId } from "@/lib/registrationId";
+import { withRegistrationIdRetry } from "@/lib/registrationId";
 import { seedComplianceEventsForRegistration } from "@/lib/entities/complianceRulesTable";
 
 export const runtime = "nodejs";
@@ -66,8 +66,18 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // BUG (fixed): this used to fall back to a silent $0 state fee whenever
+  // getStateFeeForEntity() found no pricing data — the request schema only
+  // requires `state` to be a non-empty string, not one of the 50 states the
+  // onboarding wizard's dropdown restricts it to, so a request with a typo'd
+  // or made-up state (bypassing the wizard UI and calling this endpoint
+  // directly) proceeded with no state-filing-fee line item charged at all,
+  // even though FormRight still has to pay that state's real filing fee.
   const stateFeeDetail = await getStateFeeForEntity(data.state, family);
-  const stateFeeCents = stateFeeDetail?.feeCents ?? 0;
+  if (!stateFeeDetail) {
+    return NextResponse.json({ error: "We don't have state filing fee pricing for this state yet — please contact support." }, { status: 400 });
+  }
+  const stateFeeCents = stateFeeDetail.feeCents;
   // Recurring addons (e.g. Comply) aren't sellable as a one-time Checkout
   // line item — Stripe Checkout can't mix one-time and recurring items in
   // "payment" mode. Those are subscribed to separately after formation; see
@@ -79,19 +89,24 @@ export async function POST(req: NextRequest) {
   // Find-or-create the user by email. We deliberately do NOT create a session
   // here — anyone can type an email into a checkout form, so proving
   // ownership still requires the magic-link flow (see lib/auth.ts).
-  const existingUser = await query<{ id: string }>("SELECT id FROM users WHERE email = $1", [data.email]);
-  let userId: string;
-  if (existingUser.rows.length > 0) {
-    userId = existingUser.rows[0].id;
-  } else {
-    const inserted = await query<{ id: string }>(
-      "INSERT INTO users (email, name) VALUES ($1, $2) RETURNING id",
-      [data.email, `${data.fname} ${data.lname}`.trim()]
-    );
-    userId = inserted.rows[0].id;
-  }
+  //
+  // BUG (fixed): this used to SELECT-then-branch to INSERT, with no
+  // transaction/locking — the same check-then-insert race already fixed in
+  // lib/auth.ts's createMagicLinkToken and the v1 formations route. Two
+  // concurrent checkout submissions with the same brand-new email could
+  // race between the SELECT and INSERT on users.email's UNIQUE constraint.
+  const upserted = await query<{ id: string }>(
+    `INSERT INTO users (email, name) VALUES ($1, $2)
+     ON CONFLICT (email) DO UPDATE SET email = users.email
+     RETURNING id`,
+    [data.email, `${data.fname} ${data.lname}`.trim()]
+  );
+  const userId = upserted.rows[0].id;
 
-  const registrationId = generateRegistrationId();
+  // Assigned inside the try block below via withRegistrationIdRetry — kept
+  // outside so the catch block's rollback can still reference it if a
+  // later step (compliance seeding, Stripe) fails after a successful insert.
+  let registrationId: string | undefined;
   const notes = JSON.stringify({
     orgtypeRaw: data.orgtype,
     nonprofitSubtype: data.caNonprofitSubtype,
@@ -108,81 +123,101 @@ export async function POST(req: NextRequest) {
     phone: data.phone,
   });
 
-  await query(
-    `INSERT INTO registrations
-       (id, user_id, orgname, entity_type, state, plan, status, amount_cents, state_fee_cents,
-        board, mission, contact_name, contact_email, address, ein, fiscal_year, notes)
-     VALUES ($1,$2,$3,$4,$5,$6,'pending',$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
-    [
-      registrationId,
-      userId,
-      data.orgname,
-      family,
-      data.state,
-      plan.name,
-      totalCents,
-      stateFeeCents,
-      JSON.stringify(data.board),
-      data.mission,
-      `${data.fname} ${data.lname}`.trim(),
-      data.email,
-      JSON.stringify({ address: data.address, city: data.city, zip: data.zip }),
-      data.ein,
-      data.fiscal,
-      notes,
-    ]
-  );
-
-  const complianceEvents = await seedComplianceEventsForRegistration(family, data.state, new Date(), data.fiscal);
-  for (const event of complianceEvents) {
-    await query(
-      `INSERT INTO compliance_events (registration_id, event_type, due_date)
-       VALUES ($1, $2, $3)`,
-      [registrationId, event.eventType, event.dueDate]
-    );
-  }
-
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? req.nextUrl.origin;
   const stripe = getStripe();
 
-  const lineItems: Array<{ price_data: { currency: string; product_data: { name: string; description?: string }; unit_amount: number }; quantity: number }> = [
-    {
-      price_data: {
-        currency: "usd",
-        product_data: { name: `FormRight ${plan.name} Plan — ${data.orgname}` },
-        unit_amount: plan.priceCents,
-      },
-      quantity: 1,
-    },
-  ];
-  if (stateFeeCents > 0) {
-    lineItems.push({
-      price_data: {
-        currency: "usd",
-        product_data: {
-          name: `${data.state} state filing fee`,
-          // Surfaces things this fee does NOT cover (e.g. CA's separate $800/yr
-          // franchise tax, NY's LLC publication requirement) at checkout time,
-          // not buried in a support ticket later.
-          ...(stateFeeDetail?.notes ? { description: stateFeeDetail.notes } : {}),
-        },
-        unit_amount: stateFeeCents,
-      },
-      quantity: 1,
-    });
-  }
-  for (const addon of selectedAddons) {
-    lineItems.push({
-      price_data: {
-        currency: "usd",
-        product_data: { name: addon.name, description: addon.description },
-        unit_amount: addon.priceCents,
-      },
-      quantity: 1,
-    });
-  }
-
+  // BUG (fixed): the registration INSERT and compliance-event seeding used
+  // to run *before* this try block, which only wrapped the Stripe call.
+  // That reintroduced the exact "orphaned pending registration" bug PR #1
+  // already fixed one step later in this same route — if seeding compliance
+  // events threw for any reason, the registration row committed above was
+  // permanently stuck in 'pending' status with no Stripe session ever
+  // created and no cleanup path (the catch block's rollback only ran for
+  // Stripe failures). Moving the insert + seeding inside this try means any
+  // failure anywhere in the sequence — including a registration-ID
+  // collision on the insert itself — gets the same rollback and clean error
+  // response as a Stripe failure does.
   try {
+    // BUG (fixed): generateRegistrationId()'s 6-digit ID had no DB-side
+    // uniqueness check before this insert — a collision (see
+    // lib/registrationId.ts for the odds) threw an unhandled unique-
+    // violation. withRegistrationIdRetry generates a fresh id and retries
+    // just this insert on a genuine collision, rather than failing the
+    // whole checkout.
+    registrationId = await withRegistrationIdRetry(async (id) => {
+      await query(
+        `INSERT INTO registrations
+           (id, user_id, orgname, entity_type, state, plan, status, amount_cents, state_fee_cents,
+            board, mission, contact_name, contact_email, address, ein, fiscal_year, notes)
+         VALUES ($1,$2,$3,$4,$5,$6,'pending',$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+        [
+          id,
+          userId,
+          data.orgname,
+          family,
+          data.state,
+          plan.name,
+          totalCents,
+          stateFeeCents,
+          JSON.stringify(data.board),
+          data.mission,
+          `${data.fname} ${data.lname}`.trim(),
+          data.email,
+          JSON.stringify({ address: data.address, city: data.city, zip: data.zip }),
+          data.ein,
+          data.fiscal,
+          notes,
+        ]
+      );
+      return id;
+    });
+
+    const complianceEvents = await seedComplianceEventsForRegistration(family, data.state, new Date(), data.fiscal);
+    for (const event of complianceEvents) {
+      await query(
+        `INSERT INTO compliance_events (registration_id, event_type, due_date)
+         VALUES ($1, $2, $3)`,
+        [registrationId, event.eventType, event.dueDate]
+      );
+    }
+
+    const lineItems: Array<{ price_data: { currency: string; product_data: { name: string; description?: string }; unit_amount: number }; quantity: number }> = [
+      {
+        price_data: {
+          currency: "usd",
+          product_data: { name: `FormRight ${plan.name} Plan — ${data.orgname}` },
+          unit_amount: plan.priceCents,
+        },
+        quantity: 1,
+      },
+    ];
+    if (stateFeeCents > 0) {
+      lineItems.push({
+        price_data: {
+          currency: "usd",
+          product_data: {
+            name: `${data.state} state filing fee`,
+            // Surfaces things this fee does NOT cover (e.g. CA's separate $800/yr
+            // franchise tax, NY's LLC publication requirement) at checkout time,
+            // not buried in a support ticket later.
+            ...(stateFeeDetail?.notes ? { description: stateFeeDetail.notes } : {}),
+          },
+          unit_amount: stateFeeCents,
+        },
+        quantity: 1,
+      });
+    }
+    for (const addon of selectedAddons) {
+      lineItems.push({
+        price_data: {
+          currency: "usd",
+          product_data: { name: addon.name, description: addon.description },
+          unit_amount: addon.priceCents,
+        },
+        quantity: 1,
+      });
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       line_items: lineItems,
@@ -199,20 +234,27 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ url: session.url, registrationId, totalCents });
   } catch (err) {
-    // Stripe never got a session created for this registration — roll it
-    // back rather than leaving a permanent orphaned "pending" row with no
+    // No Stripe session got created for this registration — whether the
+    // failure was the registration insert itself, compliance-event seeding,
+    // or the Stripe call — so roll everything for this registrationId back
+    // rather than leaving a permanent orphaned "pending" row with no
     // payment attached and no retry path.
-    console.error(`Failed to create Stripe checkout session for ${registrationId}:`, err);
+    console.error(`Checkout failed for registration ${registrationId ?? "(none created)"}:`, err);
     Sentry.captureException(err);
-    try {
-      await query("DELETE FROM compliance_events WHERE registration_id = $1", [registrationId]);
-      await query("DELETE FROM registrations WHERE id = $1", [registrationId]);
-    } catch (cleanupErr) {
-      // The client still gets a clean error either way — but if cleanup
-      // itself failed, that orphaned registration needs manual attention,
-      // so it's reported distinctly from the original Stripe failure.
-      console.error(`Failed to roll back orphaned registration ${registrationId}:`, cleanupErr);
-      Sentry.captureException(cleanupErr);
+    // registrationId is only unset if withRegistrationIdRetry itself threw
+    // (every retry hit a genuine collision, or a non-collision error) —
+    // nothing was ever inserted in that case, so there's nothing to clean up.
+    if (registrationId) {
+      try {
+        await query("DELETE FROM compliance_events WHERE registration_id = $1", [registrationId]);
+        await query("DELETE FROM registrations WHERE id = $1", [registrationId]);
+      } catch (cleanupErr) {
+        // The client still gets a clean error either way — but if cleanup
+        // itself failed, that orphaned registration needs manual attention,
+        // so it's reported distinctly from the original Stripe failure.
+        console.error(`Failed to roll back orphaned registration ${registrationId}:`, cleanupErr);
+        Sentry.captureException(cleanupErr);
+      }
     }
     return NextResponse.json({ error: "Could not create checkout session" }, { status: 502 });
   }

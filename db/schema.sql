@@ -280,7 +280,7 @@ CREATE INDEX idx_nonprofit_statutes_state ON nonprofit_statutes(state);
 
 CREATE TABLE irs_filings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  registration_id TEXT NOT NULL REFERENCES registrations(id),
+  registration_id TEXT NOT NULL UNIQUE REFERENCES registrations(id),
   filing_type TEXT NOT NULL DEFAULT '1023-ez' CHECK (filing_type IN ('1023', '1023-ez')),
   status TEXT NOT NULL DEFAULT 'not_started' CHECK (status IN (
     'not_started', 'ein_obtained', 'submitted', 'additional_info_requested', 'approved', 'denied'
@@ -292,7 +292,6 @@ CREATE TABLE irs_filings (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_irs_filings_registration ON irs_filings(registration_id);
 CREATE INDEX idx_irs_filings_status ON irs_filings(status) WHERE status NOT IN ('approved', 'denied');
 
 -- Contractor management ──────────────────────────────────────────────────

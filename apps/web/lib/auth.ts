@@ -21,6 +21,17 @@ function jwtSecret(): string {
   return secret;
 }
 
+// BUG (fixed): session and magic-link tokens used to be stored verbatim in
+// `sessions.token` / `users.magic_link_token`. Both are high-entropy
+// (a signed JWT, a 32-byte random hex string) so they're not guessable —
+// the risk is a DB-only compromise (a leaked backup, an over-broad service-
+// role query) handing over live, directly-usable session/login credentials
+// with no further work needed. Hashing before every write and lookup means
+// the stored value alone can't be replayed even if the database leaks.
+function hashToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
 // ── Magic link request/verify ──────────────────────────────────────────────
 // Replaces the prototype's demo bypass (any email/password → dashboard).
 
@@ -28,19 +39,20 @@ export async function createMagicLinkToken(email: string, name?: string): Promis
   const token = crypto.randomBytes(32).toString("hex");
   const expiry = new Date(Date.now() + MAGIC_LINK_TTL_MS);
 
-  const existing = await query<{ id: string }>("SELECT id FROM users WHERE email = $1", [email]);
-  if (existing.rows.length > 0) {
-    await query("UPDATE users SET magic_link_token = $1, token_expiry = $2 WHERE email = $3", [
-      token,
-      expiry,
-      email,
-    ]);
-  } else {
-    await query(
-      "INSERT INTO users (email, name, magic_link_token, token_expiry) VALUES ($1, $2, $3, $4)",
-      [email, name ?? null, token, expiry]
-    );
-  }
+  // BUG (fixed): this used to SELECT-then-branch to INSERT or UPDATE, with
+  // no transaction/locking. users.email is UNIQUE NOT NULL — two concurrent
+  // requests for the same new email both see "not found" and both attempt
+  // INSERT; the loser threw an uncaught unique-violation instead of a clean
+  // error. A single INSERT ... ON CONFLICT DO UPDATE is atomic and removes
+  // the race entirely, while preserving the original behavior of never
+  // touching `name` on an already-existing user (only the insert path sets
+  // it — the ON CONFLICT branch only updates the token/expiry columns).
+  await query(
+    `INSERT INTO users (email, name, magic_link_token, token_expiry)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (email) DO UPDATE SET magic_link_token = EXCLUDED.magic_link_token, token_expiry = EXCLUDED.token_expiry`,
+    [email, name ?? null, hashToken(token), expiry]
+  );
   return token;
 }
 
@@ -53,7 +65,7 @@ export async function consumeMagicLinkToken(token: string): Promise<SessionUser 
     token_expiry: string;
   }>(
     "SELECT id, email, name, role, token_expiry FROM users WHERE magic_link_token = $1",
-    [token]
+    [hashToken(token)]
   );
   const user = result.rows[0];
   if (!user) return null;
@@ -74,7 +86,7 @@ export async function createSession(userId: string): Promise<void> {
 
   await query("INSERT INTO sessions (user_id, token, expires_at) VALUES ($1, $2, $3)", [
     userId,
-    token,
+    hashToken(token),
     expiresAt,
   ]);
 
@@ -92,7 +104,7 @@ export async function destroySession(): Promise<void> {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (token) {
-    await query("DELETE FROM sessions WHERE token = $1", [token]);
+    await query("DELETE FROM sessions WHERE token = $1", [hashToken(token)]);
   }
   cookieStore.delete(SESSION_COOKIE);
 }
@@ -118,7 +130,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     `SELECT u.id, u.email, u.name, u.role, s.expires_at
      FROM sessions s JOIN users u ON u.id = s.user_id
      WHERE s.token = $1`,
-    [token]
+    [hashToken(token)]
   );
   const row = result.rows[0];
   if (!row) return null;

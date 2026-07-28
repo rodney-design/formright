@@ -35,10 +35,26 @@ export interface RegisteredAgentOrderUpdate {
   providerConfirmationId?: string;
 }
 
+// BUG (fixed): status could jump straight to "active" with no requirement
+// that a provider confirmation ID ever exist — nothing stopped a PATCH from
+// marking a fresh "not_requested" order "active" with no evidence it was
+// actually confirmed with the registered-agent provider. Thrown when the
+// update (or the row's existing value) has no provider_confirmation_id.
+export class MissingProviderConfirmationError extends Error {}
+
 export async function updateRegisteredAgentOrder(
   id: string,
   update: RegisteredAgentOrderUpdate
 ): Promise<RegisteredAgentOrder | null> {
+  if (update.status === "active" && update.providerConfirmationId === undefined) {
+    const existing = await getRegisteredAgentOrderById(id);
+    if (!existing?.provider_confirmation_id) {
+      throw new MissingProviderConfirmationError(
+        "Cannot mark a registered-agent order as active without a provider confirmation ID"
+      );
+    }
+  }
+
   const sets: string[] = [];
   const values: unknown[] = [];
   let i = 1;

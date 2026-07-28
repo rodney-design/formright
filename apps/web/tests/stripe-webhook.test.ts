@@ -15,10 +15,16 @@ const ensureRegisteredAgentOrderMock = vi.fn();
 const sendRegistrationConfirmationEmailMock = vi.fn();
 const captureExceptionMock = vi.fn();
 
+const subscriptionsRetrieveMock = vi.fn();
+const upsertFirmSubscriptionMock = vi.fn();
+
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/db", () => ({ query: queryMock }));
 vi.mock("@/lib/stripe", () => ({
-  getStripe: () => ({ webhooks: { constructEvent: constructEventMock } }),
+  getStripe: () => ({
+    webhooks: { constructEvent: constructEventMock },
+    subscriptions: { retrieve: subscriptionsRetrieveMock },
+  }),
 }));
 vi.mock("@/lib/email", () => ({
   sendRegistrationConfirmationEmail: sendRegistrationConfirmationEmailMock,
@@ -26,7 +32,8 @@ vi.mock("@/lib/email", () => ({
 vi.mock("@/lib/queries/stateFilings", () => ({ ensureStateFiling: ensureStateFilingMock }));
 vi.mock("@/lib/state-filing/submit", () => ({ submitStateFilingToProvider: submitStateFilingToProviderMock }));
 vi.mock("@/lib/queries/registeredAgent", () => ({ ensureRegisteredAgentOrder: ensureRegisteredAgentOrderMock }));
-vi.mock("@/lib/queries/firmSubscriptions", () => ({ upsertFirmSubscription: vi.fn() }));
+vi.mock("@/lib/queries/irsFilings", () => ({ ensureIrsFiling: vi.fn() }));
+vi.mock("@/lib/queries/firmSubscriptions", () => ({ upsertFirmSubscription: upsertFirmSubscriptionMock }));
 vi.mock("@sentry/nextjs", () => ({ captureException: captureExceptionMock }));
 
 function makeRequest(body: string) {
@@ -123,5 +130,82 @@ describe("Stripe webhook — payment_intent.succeeded side effects", () => {
     expect(res.status).toBe(200);
     expect(ensureStateFilingMock).not.toHaveBeenCalled();
     expect(sendRegistrationConfirmationEmailMock).not.toHaveBeenCalled();
+  });
+});
+
+// Regression coverage for a real bug: the checkout.session.completed and
+// customer.subscription.* branches used to run completely unguarded, in
+// sharp contrast to the extensively isolated payment_intent branch above —
+// a Stripe API hiccup (or the underlying check-then-act race, now fixed
+// with an atomic upsert) would throw and 500 the whole webhook with zero
+// logging/visibility.
+describe("Stripe webhook — subscription event isolation", () => {
+  beforeEach(() => {
+    subscriptionsRetrieveMock.mockResolvedValue({
+      status: "active",
+      metadata: { plan: "comply" },
+      items: { data: [{ current_period_end: 1893456000 }] },
+    });
+  });
+
+  it("does not 500 when upserting a firm seat subscription throws on checkout.session.completed", async () => {
+    constructEventMock.mockReturnValue({
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          mode: "subscription",
+          subscription: "sub_123",
+          metadata: { firmId: "firm-1" },
+          client_reference_id: null,
+        },
+      },
+    });
+    upsertFirmSubscriptionMock.mockRejectedValue(new Error("DB unreachable"));
+
+    const { POST } = await import("@/app/api/webhooks/stripe/route");
+    const res = await POST(makeRequest("{}"));
+
+    expect(res.status).toBe(200);
+    expect(captureExceptionMock).toHaveBeenCalledWith(expect.any(Error));
+  });
+
+  it("does not 500 when the individual subscription upsert throws on customer.subscription.updated", async () => {
+    constructEventMock.mockReturnValue({
+      type: "customer.subscription.updated",
+      data: {
+        object: { id: "sub_456", status: "active", metadata: { userId: "user-1", plan: "comply" }, items: { data: [] } },
+      },
+    });
+    queryMock.mockImplementation((sql: string) => {
+      if (sql.includes("INSERT INTO subscriptions")) return Promise.reject(new Error("connection reset"));
+      return Promise.resolve({ rows: [] });
+    });
+
+    const { POST } = await import("@/app/api/webhooks/stripe/route");
+    const res = await POST(makeRequest("{}"));
+
+    expect(res.status).toBe(200);
+    expect(captureExceptionMock).toHaveBeenCalledWith(expect.any(Error));
+  });
+
+  it("upserts an individual subscription via a single atomic statement, not a separate SELECT", async () => {
+    constructEventMock.mockReturnValue({
+      type: "customer.subscription.updated",
+      data: {
+        object: { id: "sub_789", status: "active", metadata: { userId: "user-1", plan: "comply" }, items: { data: [] } },
+      },
+    });
+    const executed: string[] = [];
+    queryMock.mockImplementation((sql: string) => {
+      executed.push(sql);
+      return Promise.resolve({ rows: [] });
+    });
+
+    const { POST } = await import("@/app/api/webhooks/stripe/route");
+    await POST(makeRequest("{}"));
+
+    const subscriptionQueries = executed.filter((sql) => sql.includes("subscriptions"));
+    expect(subscriptionQueries).toHaveLength(1);
+    expect(subscriptionQueries[0]).toContain("ON CONFLICT (stripe_subscription_id)");
   });
 });

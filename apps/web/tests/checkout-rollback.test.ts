@@ -5,6 +5,7 @@
 // in its own try/catch so a failed rollback can't hijack the response the
 // client sees.
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { seedComplianceEventsForRegistration } from "@/lib/entities/complianceRulesTable";
 
 const queryMock = vi.fn();
 const createSessionMock = vi.fn();
@@ -90,6 +91,26 @@ describe("POST /api/checkout — Stripe session failure", () => {
     expect(res.status).toBe(200);
     expect(json.url).toBe("https://checkout.stripe.com/session_123");
     expect(executedSql.some((sql) => sql.includes("DELETE FROM registrations"))).toBe(false);
+  });
+
+  // Regression for a real bug: the registration insert and compliance-event
+  // seeding used to run *before* the try/catch that has this rollback, so a
+  // failure in seeding (as opposed to the Stripe call) left the already-
+  // inserted registration row permanently orphaned with no cleanup. Now the
+  // insert + seeding run inside the same try, so this failure gets the same
+  // rollback as a Stripe failure does.
+  it("rolls back the registration when compliance-event seeding throws (not just on Stripe failure)", async () => {
+    vi.mocked(seedComplianceEventsForRegistration).mockRejectedValueOnce(new Error("DB unreachable during seeding"));
+
+    const { POST } = await import("@/app/api/checkout/route");
+    const res = await POST(await makeRequest(VALID_BODY));
+
+    expect(res.status).toBe(502);
+    expect(captureExceptionMock).toHaveBeenCalledWith(expect.any(Error));
+    expect(createSessionMock).not.toHaveBeenCalled();
+
+    const deletedRegistrations = executedSql.some((sql) => sql.includes("DELETE FROM registrations"));
+    expect(deletedRegistrations).toBe(true);
   });
 
   it("still returns a clean 502 (not a 500 crash) if the rollback itself fails", async () => {

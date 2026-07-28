@@ -41,27 +41,35 @@ export async function createContractorForEmail(
   name: string | undefined,
   statesCovered: string[]
 ): Promise<Contractor> {
-  const existingUser = await query<{ id: string }>("SELECT id FROM users WHERE email = $1", [email]);
-  let userId: string;
-  if (existingUser.rows.length > 0) {
-    userId = existingUser.rows[0].id;
-    await query("UPDATE users SET role = 'contractor' WHERE id = $1 AND role = 'client'", [userId]);
-  } else {
-    const inserted = await query<{ id: string }>(
-      "INSERT INTO users (email, name, role) VALUES ($1, $2, 'contractor') RETURNING id",
-      [email, name ?? null]
-    );
-    userId = inserted.rows[0].id;
-  }
+  // BUG (fixed): this used to be a check-then-insert-or-update on
+  // users.email (same race already fixed in lib/auth.ts, api/checkout,
+  // api/v1/formations) — two concurrent invites for the same brand-new
+  // contractor email could both see "not found" and both attempt INSERT,
+  // the loser throwing an uncaught unique-violation. The CASE preserves the
+  // original semantics exactly: only promote an existing 'client' to
+  // 'contractor', never touch admin/super_admin/already-contractor roles —
+  // and always yields a row via RETURNING, even when the CASE is a no-op,
+  // so ON CONFLICT DO UPDATE ... WHERE's "skip the row entirely" pitfall
+  // doesn't leave this without a user id to continue with.
+  const upsertedUser = await query<{ id: string }>(
+    `INSERT INTO users (email, name, role) VALUES ($1, $2, 'contractor')
+     ON CONFLICT (email) DO UPDATE
+       SET role = CASE WHEN users.role = 'client' THEN 'contractor' ELSE users.role END
+     RETURNING id`,
+    [email, name ?? null]
+  );
+  const userId = upsertedUser.rows[0].id;
 
-  const existingContractor = await getContractorByUserId(userId);
-  if (existingContractor) return existingContractor;
-
-  const result = await query<Contractor>(
-    "INSERT INTO contractors (user_id, states_covered) VALUES ($1, $2) RETURNING *",
+  // Same check-then-insert race on contractors.user_id (UNIQUE NOT NULL) —
+  // ON CONFLICT DO NOTHING-equivalent no-op update, then re-select, matches
+  // ensureIrsFiling's pattern for a UNIQUE column with an idempotent create.
+  const upsertedContractor = await query<Contractor>(
+    `INSERT INTO contractors (user_id, states_covered) VALUES ($1, $2)
+     ON CONFLICT (user_id) DO UPDATE SET user_id = contractors.user_id
+     RETURNING *`,
     [userId, statesCovered]
   );
-  return result.rows[0];
+  return upsertedContractor.rows[0];
 }
 
 export async function updateContractorStatus(id: string, status: ContractorStatus): Promise<Contractor | null> {

@@ -49,7 +49,23 @@ export interface StateFilingUpdate {
   providerFilingId?: string;
 }
 
+// BUG (fixed): filing_status could jump straight to "approved" with no
+// requirement that a state confirmation ID ever exist — nothing stopped a
+// PATCH from marking a fresh "not_submitted" filing "approved" with no
+// evidence it was actually filed with the state. Thrown when the update (or
+// the row's existing value) has no state_confirmation_id.
+export class MissingStateConfirmationError extends Error {}
+
 export async function updateStateFiling(id: string, update: StateFilingUpdate): Promise<StateFiling | null> {
+  if (update.filingStatus === "approved" && update.stateConfirmationId === undefined) {
+    const existing = await getStateFilingById(id);
+    if (!existing?.state_confirmation_id) {
+      throw new MissingStateConfirmationError(
+        "Cannot mark a filing as approved without a state confirmation ID"
+      );
+    }
+  }
+
   const sets: string[] = [];
   const values: unknown[] = [];
   let i = 1;

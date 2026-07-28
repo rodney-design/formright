@@ -4,7 +4,8 @@
 // regeneration gets the next version number for that registration+key), and
 // hands back a signed URL instead of streaming the bytes directly.
 import "server-only";
-import { query } from "@/lib/db";
+import type { PoolClient } from "pg";
+import { withClient } from "@/lib/db";
 import { uploadDocument, getDocumentUrl } from "@/lib/storage";
 import { generateDocBuffer } from "./generate";
 import { build1023EZPrefillPdf } from "./pdf/irs1023ez";
@@ -20,8 +21,8 @@ export interface StoredDocument {
   filename: string;
 }
 
-async function nextVersion(registrationId: string, docKey: string): Promise<number> {
-  const result = await query<{ max: number | null }>(
+async function nextVersion(client: PoolClient, registrationId: string, docKey: string): Promise<number> {
+  const result = await client.query<{ max: number | null }>(
     "SELECT MAX(version) as max FROM documents WHERE registration_id = $1 AND doc_key = $2",
     [registrationId, docKey]
   );
@@ -58,19 +59,39 @@ export async function generateAndStoreDocument(
     contentType = DOCX_CONTENT_TYPE;
   }
 
-  const version = await nextVersion(registrationId, docKey);
-  // documents.s3_key predates this storage backend swap — still the object
-  // key column, just no longer literally an S3 key. Left unrenamed to avoid
-  // a migration; see lib/storage.ts for the actual backend.
-  const storageKey = `documents/${registrationId}/${docKey}-v${version}`;
+  return withClient(async (client) => {
+    // BUG (fixed): nextVersion() used to be a plain SELECT MAX(version) then
+    // INSERT with no locking. There's no unique constraint on
+    // (registration_id, doc_key, version) to catch a collision, so two
+    // concurrent regenerations of the same document (a double-clicked
+    // download link, two open tabs) could both compute the same next
+    // version, both upload to the *same* storage object key — one silently
+    // clobbering the other — and both insert a `documents` row claiming
+    // that version, with no error anywhere. An advisory lock scoped to this
+    // transaction, keyed on (registrationId, docKey), serializes the whole
+    // version-assign + upload + insert sequence per document instead.
+    await client.query("BEGIN");
+    try {
+      await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [`${registrationId}:${docKey}`]);
+      const version = await nextVersion(client, registrationId, docKey);
+      // documents.s3_key predates this storage backend swap — still the object
+      // key column, just no longer literally an S3 key. Left unrenamed to avoid
+      // a migration; see lib/storage.ts for the actual backend.
+      const storageKey = `documents/${registrationId}/${docKey}-v${version}`;
 
-  await uploadDocument(storageKey, buffer, contentType);
-  await query(
-    `INSERT INTO documents (registration_id, doc_key, s3_key, filename, version)
-     VALUES ($1, $2, $3, $4, $5)`,
-    [registrationId, docKey, storageKey, filename, version]
-  );
+      await uploadDocument(storageKey, buffer, contentType);
+      await client.query(
+        `INSERT INTO documents (registration_id, doc_key, s3_key, filename, version)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [registrationId, docKey, storageKey, filename, version]
+      );
+      await client.query("COMMIT");
 
-  const url = await getDocumentUrl(storageKey);
-  return { url, filename };
+      const url = await getDocumentUrl(storageKey);
+      return { url, filename };
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    }
+  });
 }

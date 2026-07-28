@@ -4,7 +4,7 @@ import { query } from "@/lib/db";
 import { requireApiKeyFirm, ApiAuthError, RateLimitError } from "@/lib/apiAuth";
 import { entityFamily } from "@/lib/entities/entityFamily";
 import { getStateFeeForEntity } from "@/lib/entities/stateFeesTable";
-import { generateRegistrationId } from "@/lib/registrationId";
+import { withRegistrationIdRetry } from "@/lib/registrationId";
 import { seedComplianceEventsForRegistration } from "@/lib/entities/complianceRulesTable";
 import { ensureStateFiling } from "@/lib/queries/stateFilings";
 import { getRegistrationsForFirm } from "@/lib/queries/registrations";
@@ -66,45 +66,55 @@ export async function POST(req: NextRequest) {
   const stateFeeDetail = await getStateFeeForEntity(data.state, family);
   const stateFeeCents = stateFeeDetail?.feeCents ?? 0;
 
-  const existingUser = await query<{ id: string }>("SELECT id FROM users WHERE email = $1", [data.contactEmail]);
-  let userId: string;
-  if (existingUser.rows.length > 0) {
-    userId = existingUser.rows[0].id;
-  } else {
-    const inserted = await query<{ id: string }>(
-      "INSERT INTO users (email, name) VALUES ($1, $2) RETURNING id",
-      [data.contactEmail, data.contactName]
-    );
-    userId = inserted.rows[0].id;
-  }
+  // BUG (fixed): this used to SELECT-then-branch to INSERT, with no
+  // transaction/locking. users.email is UNIQUE NOT NULL — two concurrent
+  // requests for the same new client email (a firm's integration retrying,
+  // or two near-simultaneous formations for a new client) both saw "not
+  // found" and both attempted INSERT; the loser threw an uncaught
+  // unique-violation with nothing here to catch it. INSERT ... ON CONFLICT
+  // DO UPDATE (a no-op update, just to make RETURNING work on the conflict
+  // path too) finds-or-creates the user in one atomic statement.
+  const upserted = await query<{ id: string }>(
+    `INSERT INTO users (email, name) VALUES ($1, $2)
+     ON CONFLICT (email) DO UPDATE SET email = users.email
+     RETURNING id`,
+    [data.contactEmail, data.contactName]
+  );
+  const userId = upserted.rows[0].id;
 
-  const registrationId = generateRegistrationId();
   const notes = JSON.stringify({ orgtypeRaw: data.orgtype, source: "api_v1" });
 
-  await query(
-    `INSERT INTO registrations
-       (id, user_id, firm_id, orgname, entity_type, state, plan, status, amount_cents, state_fee_cents,
-        board, mission, contact_name, contact_email, address, ein, fiscal_year, notes)
-     VALUES ($1,$2,$3,$4,$5,$6,'Pro (API)','paid',$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
-    [
-      registrationId,
-      userId,
-      firmId,
-      data.orgname,
-      family,
-      data.state,
-      stateFeeCents,
-      stateFeeCents,
-      JSON.stringify(data.board),
-      data.mission,
-      data.contactName,
-      data.contactEmail,
-      JSON.stringify({ address: data.address, city: data.city, zip: data.zip }),
-      data.ein,
-      data.fiscal,
-      notes,
-    ]
-  );
+  // BUG (fixed): generateRegistrationId()'s 6-digit id had no DB-side
+  // uniqueness check before this insert — see lib/registrationId.ts for the
+  // collision odds. withRegistrationIdRetry generates a fresh id and
+  // retries just this insert on a genuine collision.
+  const registrationId = await withRegistrationIdRetry(async (id) => {
+    await query(
+      `INSERT INTO registrations
+         (id, user_id, firm_id, orgname, entity_type, state, plan, status, amount_cents, state_fee_cents,
+          board, mission, contact_name, contact_email, address, ein, fiscal_year, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,'Pro (API)','paid',$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+      [
+        id,
+        userId,
+        firmId,
+        data.orgname,
+        family,
+        data.state,
+        stateFeeCents,
+        stateFeeCents,
+        JSON.stringify(data.board),
+        data.mission,
+        data.contactName,
+        data.contactEmail,
+        JSON.stringify({ address: data.address, city: data.city, zip: data.zip }),
+        data.ein,
+        data.fiscal,
+        notes,
+      ]
+    );
+    return id;
+  });
 
   for (const event of await seedComplianceEventsForRegistration(family, data.state, new Date(), data.fiscal)) {
     await query(
