@@ -1,4 +1,5 @@
 import { Pool, type QueryResultRow } from "pg";
+import * as Sentry from "@sentry/nextjs";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -10,7 +11,21 @@ function createPool(): Pool {
   if (!connectionString) {
     throw new Error("DATABASE_URL is not set");
   }
-  return new Pool({ connectionString });
+  const pool = new Pool({ connectionString });
+  // BUG (fixed): node-postgres emits an 'error' event on the Pool itself
+  // whenever an IDLE pooled client hits a backend error or the connection
+  // is dropped (a network blip, Supabase's pooler recycling a connection,
+  // etc.) — this is documented pg behavior, not an edge case. With no
+  // listener attached, Node treats that emitted 'error' as an uncaught
+  // exception and crashes the *entire process*, taking down every
+  // in-flight request, not just whichever one happened to be using that
+  // connection. Every pg Pool needs an error handler for exactly this
+  // reason — report and move on, don't let it propagate.
+  pool.on("error", (err) => {
+    console.error("Unexpected error on idle Postgres client:", err);
+    Sentry.captureException(err);
+  });
+  return pool;
 }
 
 // Lazily create the pool on first use (not at module load) so importing this
