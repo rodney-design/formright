@@ -61,45 +61,63 @@ Vercel-specific code existed in the app (no `@vercel/*` packages, no edge
 middleware, no ISR/ image-optimization config to migrate) — this was a clean swap.
 
 This migration work (netlify.toml, the scheduled function, README/CLAUDE.md updates)
-lives on branch `claude/vercel-build-deployment-7iptur`. **It has not been merged to
-the default branch or deployed anywhere yet** — see "Coming-soon site is live, main
-app is not" below for what's actually running in production right now.
+was originally done on branch `claude/vercel-build-deployment-7iptur` and has since been
+merged to the default branch (`claude/build-it-ntpntq`) — `netlify.toml` and
+`apps/web/netlify/functions/compliance-reminders-cron.ts` are live there now.
 
 A live Vercel API token was pasted into a chat session on 2026-07-26 while
 troubleshooting the old Vercel setup. It should be treated as compromised — rotate/
 revoke it in Vercel (Settings → Tokens) regardless of whether Vercel is still used for
 anything. Not confirmed done as of this writing.
 
-## Coming-soon site is live, main app is not (as of 2026-07-26)
+## The real app is deployed and live at formright.org (as of 2026-07-28)
 
-`formright.org` is live in production right now, but it's serving the **standalone
-coming-soon page** (`marketing-temp/index.html`, built on branch
-`claude/temp-marketing-site` by a separate session — see that branch's own commit
-for context), not the FormRight app. Concretely:
+Contrary to earlier notes in this file (left below for history) — **the real Next.js app
+now has its own Netlify project and is what `formright.org` actually serves.** Verified
+directly via the Netlify API on 2026-07-28, not inferred from docs:
 
-- Netlify project name: `formright` (team: rodney-urhb1t8's team). Production branch
-  is set to `claude/temp-marketing-site`, base directory `marketing-temp`, no build
-  command — plain static HTML.
-- DNS for `formright.org` is at IONOS: `A @ → 75.2.60.5`, `CNAME www → formright.netlify.app`.
-  Existing Gmail MX/SPF/DKIM/domain-verification records were left untouched. HTTPS via
-  Let's Encrypt is provisioned and working.
-- The page's "Get Notified at Launch" button is a real `<form data-netlify="true">`
-  (Netlify Forms — no backend needed), submitting to `marketing-temp/thanks.html`.
-  Submissions land in the Netlify dashboard's **Forms** tab; no email notification is
-  configured yet (nobody gets pinged when someone signs up — has to be checked
-  manually, or set up under Forms → Form notifications → Add notification).
-- Footer contact address is `hello@formright.org` (fixed from a placeholder
-  `hello@formright.com`, a domain FormRight doesn't own) — confirm that inbox actually
-  exists in the Google Workspace tied to the domain, or create it.
-- `marketing-temp/README.md`'s "Retiring it" section still says to point the domain at
-  a Vercel deployment — stale, that whole plan is Netlify now. Needs a rewrite once the
-  real app deploy exists (see next section), since the actual next step will be moving
-  `formright.org`'s DNS from this Netlify project to whatever Netlify project ends up
-  hosting `apps/web`.
+- Netlify project `formright-app` (site id `b3a4feaa-3ba6-4b15-99d7-ee4461feb390`) —
+  primary URL `https://formright.org`, tracks the `claude/build-it-ntpntq` branch (this
+  repo's actual default branch), framework `next`, deploys via `@netlify/plugin-nextjs`.
+  Its current production deploy tracks whatever commit is HEAD on that branch — check
+  the deploy's `commit_ref` against `git log` if you need to confirm what's actually live.
+- The old coming-soon-page project (`formright`, site id
+  `db7ec013-d643-4137-bc6c-8b2f0303c5e5`) still exists but no longer owns the custom
+  domain — its primary URL is now the plain `https://formright.netlify.app`, still
+  tracking `claude-temp-marketing-site`. DNS for `formright.org` has been moved to
+  `formright-app`.
+- A Supabase project (`formright`, ref `prmcagoivhfcgaljuryw`, Postgres 17,
+  `ACTIVE_HEALTHY`) backs it — `DATABASE_URL`/`SUPABASE_*` env vars are set on
+  `formright-app` and point there.
+- **Stripe is in LIVE mode** on this deployment (`sk_live_…`/`pk_live_…`) — not test
+  keys. Anything that exercises checkout against `formright.org` moves real money;
+  see "Golden-path verification" below for how to test around that.
+- All four Netlify env-var contexts (`production`, `deploy-preview`, `branch-deploy`,
+  `dev`) for `formright-app` point at the **same** `DATABASE_URL` — deploy previews are
+  not isolated from the production database. Keep that in mind before assuming a PR
+  preview is a safe sandbox for anything destructive.
+- Who set this up and exactly when isn't recorded anywhere in this repo's history — it
+  happened between this file's last update and 2026-07-28, most likely by the human
+  directly through the Netlify/Supabase/Stripe dashboards, not through a sandboxed
+  session (none of this — creating accounts, generating live API keys — is something an
+  agent sandbox can do). **Don't assume this file's "Outstanding before launch" list
+  below is still accurate without re-checking** — several items on it turned out to
+  already be done.
 
-**The real Next.js app has no deployment at all right now** — the `formright` Netlify
-project above is fully consumed by the coming-soon page. Setting up the actual app
-needs a **separate, new Netlify project** — see the checklist below.
+### Schema-drift incident (2026-07-28) and the fix
+
+PRs #14/#15 (this file's QA-report fixes) merged code assuming migrations `017`-`019`
+(`admin_notes` column, `notes` as `JSONB`, `documents.s3_key NOT NULL`) — but merging to
+the default branch only auto-deploys the Netlify **app**, nothing had ever applied those
+migrations to the live Supabase database. For about an hour, the live DB was one
+migration behind the deployed code: registered-agent order fulfillment and admin-notes
+saves were silently broken. Caught by hand (direct schema inspection via the Supabase
+API), fixed by hand (applied 017-019 directly), and then fixed structurally — see
+"`db/migrations/` — historical through 016, real and automated from 017" below for the
+new `apps/web/scripts/migrate.js` runner that makes this a non-issue going forward. No
+real customer data existed yet when this happened (`registrations`/`documents` were both
+empty), so nothing was actually lost — but the next schema change won't get that luck for
+free without the runner.
 
 ## Storage backend: Supabase, not AWS
 
@@ -110,16 +128,29 @@ ones. The `documents.s3_key` / `state_filings.stamped_doc_s3_key` DB columns wer
 deliberately **not** renamed (label-only, not worth a migration) — they hold Supabase
 object keys now.
 
-## Known inconsistency: `db/migrations/` isn't a real incremental chain
+## `db/migrations/` — historical through 016, real and automated from 017
 
 `001_init.sql` is `\ir ../schema.sql` — which pulls in the **entire current canonical
 schema**, all phases, not just Phase 1. Running `002_phase2.sql` through
 `005_registered_agent.sql` after it on a fresh database fails with "already exists" on
 every table. Confirmed by actually running the full sequence, not just inspecting it.
-`db/schema.sql` is the real source of truth for a fresh install; the migrations directory
-is historical documentation only. Not fixed yet — needs a decision (rewrite `001_init.sql`
-to be Phase-1-only again, or drop the migrations directory for real schema-diff tooling)
-before it's worth touching.
+`db/schema.sql` remains the real source of truth for a fresh manual install; migrations
+001-016 are historical documentation only, not replayable.
+
+**This no longer needs to be worked around by hand.** `apps/web/scripts/migrate.js` runs
+before every Netlify production build, tracks applied migrations in a `schema_migrations`
+table, and bootstraps itself (fresh DB → load `schema.sql` + stamp everything as baseline;
+existing DB with no tracking yet → stamp everything as baseline without re-running it).
+Every migration from `017` onward is a small, individually-safe `ALTER` the runner can
+actually apply going forward — see the README's "Automated migrations" section.
+
+This was built in direct response to a real incident (2026-07-28): PRs #14/#15 merged
+code that assumed migrations 017-019 (`admin_notes` column, `notes` as JSONB, `s3_key
+NOT NULL`) — but nothing had ever applied those migrations to the live Supabase database,
+because merging to the default branch only auto-deploys the Netlify app, not the schema.
+The live DB sat one migration behind the deployed code for about an hour, during which
+registered-agent order fulfillment and admin-notes saves were silently broken (caught and
+fixed by hand — see below — before any real customer data existed to be affected).
 
 ## Testing posture
 
@@ -131,48 +162,42 @@ claim something works, run it the same way; don't infer correctness from reading
 
 ## Outstanding before launch (human action required — cannot be done from a sandbox)
 
-None of this can be provisioned from an agent sandbox; it needs real accounts/credentials:
+Re-verified 2026-07-28 against the live Netlify/Supabase projects directly (not inferred) —
+items 1-6 turned out to already be done, presumably by the human directly through each
+provider's dashboard:
 
-1. **Supabase project** — Postgres (`DATABASE_URL`) + a private Storage bucket
-   (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET`). Load
-   `db/schema.sql` into it.
-2. **A new, separate Netlify project for the real app** (host is Netlify, not
-   Vercel — see "Deployment platform" above). The existing `formright` Netlify
-   project is already spoken for by the coming-soon page (see "Coming-soon site is
-   live, main app is not" above) — don't repoint it, create a second project:
-   - First, merge `claude/vercel-build-deployment-7iptur` into the default branch
-     (`claude/build-it-ntpntq`) — that's where `netlify.toml` and the scheduled
-     function currently live, and they're not on the default branch yet.
-   - Import the repo as a new Netlify project, branch = default branch.
-   - **Base directory**: `apps/web` (the only app in this monorepo). `netlify.toml`
-     at the repo root already sets this, plus `@netlify/plugin-nextjs`, so the
-     Netlify UI's own base-directory field should just confirm/match it.
-   - **Node.js Version**: `20.x` (no `.nvmrc`/`engines` pin in the repo, but
-     `@types/node` is `^20` and that's the safe match for Next 14.2.35).
-   - Every var from `.env.example` set for Production + Deploy Previews (Netlify's
-     equivalent of Vercel's Production/Preview split), same list as before, plus a
-     freshly generated `JWT_SECRET` / `CRON_SECRET` (see item 6) — don't reuse
-     whatever's set on the coming-soon project, generate new ones for this project.
-   - Once this is live and verified end-to-end (item 9 below), `formright.org`'s DNS
-     needs to move from the coming-soon Netlify project to this one.
-3. **Stripe** — live/test keys, and a webhook endpoint registered at
-   `/api/webhooks/stripe` subscribed to `payment_intent.succeeded`,
-   `payment_intent.payment_failed`, `checkout.session.completed`,
-   `customer.subscription.updated`, `customer.subscription.deleted`.
-4. **SendGrid** — verified sender identity/domain (required or mail gets blocked/spam-
-   filtered), API key.
-5. **Anthropic API key** for the dashboard assistant feature.
-6. `JWT_SECRET` / `CRON_SECRET` — generate random strings (`openssl rand -hex 32`).
-   Set `CRON_SECRET` in Netlify; the Netlify Scheduled Function in
-   `apps/web/netlify/functions/compliance-reminders-cron.ts` reads it and sends
-   it itself (there's no automatic-injection equivalent to Vercel Cron here).
-7. `SENTRY_DSN` — optional but the webhook/checkout/request-link fixes above now report
-   swallowed errors to Sentry; without a DSN those reports just no-op silently.
-8. `FIRM_SEAT_PRICE_CENTS` — only if Pro-tier per-seat billing needs to be live at launch;
-   otherwise leave unset (that one endpoint just errors until it's set).
-9. Once real credentials exist: smoke-test the golden path for real (signup → checkout →
-   webhook fires → document generates in Supabase Storage → downloads), not just against
-   dummy values.
+1. ~~**Supabase project**~~ — done. Project `formright` (ref `prmcagoivhfcgaljuryw`,
+   Postgres 17, `ACTIVE_HEALTHY`); `DATABASE_URL`/`SUPABASE_*` are set on the
+   `formright-app` Netlify project.
+2. ~~**Netlify project for the real app**~~ — done. `formright-app`, base directory
+   `apps/web`, tracks `claude/build-it-ntpntq`, serving `https://formright.org`. See
+   "The real app is deployed and live at formright.org" above.
+3. **Stripe** — `STRIPE_SECRET_KEY`/`STRIPE_PUBLISHABLE_KEY` are set and **in live mode**
+   (`sk_live_…`/`pk_live_…`, not test keys), and `STRIPE_WEBHOOK_SECRET` is set (implies
+   an endpoint was registered in the Stripe dashboard). **Not independently verified**:
+   that the registered webhook is actually subscribed to all five events this app expects
+   (`payment_intent.succeeded`, `payment_intent.payment_failed`,
+   `checkout.session.completed`, `customer.subscription.updated`,
+   `customer.subscription.deleted`) — check the Stripe dashboard's webhook config directly.
+4. **SendGrid** — `SENDGRID_API_KEY`/`SENDGRID_FROM_EMAIL` (`noreply@formright.org`) are
+   set. **Not independently verified**: sender identity/domain verification status in the
+   SendGrid dashboard — if unverified, mail sends will fail or land in spam.
+5. ~~**Anthropic API key**~~ — done, set on `formright-app`.
+6. ~~`JWT_SECRET` / `CRON_SECRET`~~ — done, both set on `formright-app`.
+7. `SENTRY_DSN` — still **not set** on `formright-app`. Optional, but until it's set the
+   webhook/checkout/request-link error-reporting calls throughout this codebase no-op
+   silently instead of actually alerting anyone.
+8. `FIRM_SEAT_PRICE_CENTS` — still **not set**. Only matters if Pro-tier per-seat billing
+   needs to be live at launch; that one endpoint just errors until it's set.
+9. **Still outstanding**: smoke-test the golden path for real (signup → checkout →
+   webhook fires → document generates in Supabase Storage → downloads) against the live
+   deployment. Attempted 2026-07-28 from a sandboxed session and blocked by that session's
+   own network egress policy (couldn't reach `formright.org` or the Supabase Postgres host
+   directly — a sandbox limitation, not a code or infra problem). Since Stripe is live, do
+   **not** complete this by pushing a real card through checkout unless intentionally
+   spending real money — sign+verify a fake `payment_intent.succeeded` webhook event with
+   the real `STRIPE_WEBHOOK_SECRET` instead (same technique PR #1 used to verify the
+   webhook locally), or run it from an environment that can reach both hosts directly.
 10. Delete `origin/claude/formright-repo-clone-ga286e` on GitHub (merged twice over via
     PR #1 and #2, safe to remove — this session's git proxy can't do it, see above).
 
