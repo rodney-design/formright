@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getCurrentUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { getRegistrationsForUser } from "@/lib/queries/registrations";
 import { getSubscriptionsForUser } from "@/lib/queries/subscriptions";
 import { getDocsForEntity } from "@/lib/entities/entityDocsMap";
@@ -10,10 +10,10 @@ import ComplyNudgeBanner from "@/components/dashboard/ComplyNudgeBanner";
 const ACTIVE_STATUSES = new Set(["active", "trialing"]);
 
 export default async function DashboardHome() {
-  const user = await getCurrentUser();
+  const user = await requireUser();
   const [registrations, subscriptions] = await Promise.all([
-    getRegistrationsForUser(user!.id),
-    getSubscriptionsForUser(user!.id),
+    getRegistrationsForUser(user.id),
+    getSubscriptionsForUser(user.id),
   ]);
   const active = registrations[0];
   const complyActive = subscriptions.some((s) => s.plan === "comply" && ACTIVE_STATUSES.has(s.status));
@@ -22,7 +22,7 @@ export default async function DashboardHome() {
     <div>
       <div className="mb-8">
         <h1 className="text-2xl font-serif font-bold text-navy">
-          Welcome back{user?.name ? `, ${user.name.split(" ")[0]}` : ""}
+          Welcome back{user.name ? `, ${user.name.split(" ")[0]}` : ""}
         </h1>
         <p className="text-gray-500 text-sm mt-1">Here&apos;s where your formation stands.</p>
       </div>

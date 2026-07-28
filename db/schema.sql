@@ -40,7 +40,7 @@ CREATE TABLE registrations (
   address JSONB,
   ein TEXT,
   fiscal_year TEXT,
-  notes TEXT,                           -- structured JSON written by checkout; not for free-text edits, see admin_notes
+  notes JSONB,                           -- structured data written by checkout; not for free-text edits, see admin_notes
   admin_notes TEXT,                     -- free-text notes editable from the admin dashboard
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -59,7 +59,7 @@ CREATE TABLE documents (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   registration_id TEXT NOT NULL REFERENCES registrations(id),
   doc_key TEXT NOT NULL,                -- matches ENTITY_DOCS_MAP keys
-  s3_key TEXT,
+  s3_key TEXT NOT NULL,
   filename TEXT NOT NULL,
   version INTEGER NOT NULL DEFAULT 1,
   generated_at TIMESTAMPTZ NOT NULL DEFAULT now()

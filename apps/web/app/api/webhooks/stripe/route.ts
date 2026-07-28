@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
           state: string;
           entity_type: string;
           address: { address?: string; city?: string; zip?: string } | null;
-          notes: string | null;
+          notes: Record<string, unknown> | null;
         }>(
           `SELECT amount_cents, state_fee_cents, orgname, contact_email, contact_name, state, entity_type, address, notes
            FROM registrations WHERE id = $1`,
@@ -185,15 +185,9 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ received: true });
 }
 
-function purchasedRegisteredAgent(notes: string | null): boolean {
-  if (!notes) return false;
-  try {
-    const parsed = JSON.parse(notes);
-    const addons = parsed?.addons;
-    return Array.isArray(addons) && addons.includes("registered_agent");
-  } catch {
-    return false;
-  }
+function purchasedRegisteredAgent(notes: Record<string, unknown> | null): boolean {
+  const addons = notes?.addons;
+  return Array.isArray(addons) && addons.includes("registered_agent");
 }
 
 async function upsertFirmSeatSubscription(firmId: string, subscriptionId: string, subscription?: Stripe.Subscription) {

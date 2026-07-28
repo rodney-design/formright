@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { getCurrentUser } from "@/lib/auth";
+import { requireContractor } from "@/lib/auth";
 import { getContractorByUserId, getJobsForContractor, getPendingPayoutTotalCents } from "@/lib/queries/contractors";
 import RegisteredAgentOrderQuickUpdate from "@/components/contractor/RegisteredAgentOrderQuickUpdate";
 import type { RegisteredAgentStatus } from "@/lib/registered-agent/status";
 
 export default async function ContractorJobsPage() {
-  const user = await getCurrentUser();
-  const contractor = await getContractorByUserId(user!.id);
+  const user = await requireContractor();
+  const contractor = await getContractorByUserId(user.id);
 
   if (!contractor) {
     return <p className="text-gray-500">No contractor profile found for this account.</p>;
