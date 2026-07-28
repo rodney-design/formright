@@ -66,8 +66,18 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // BUG (fixed): this used to fall back to a silent $0 state fee whenever
+  // getStateFeeForEntity() found no pricing data — the request schema only
+  // requires `state` to be a non-empty string, not one of the 50 states the
+  // onboarding wizard's dropdown restricts it to, so a request with a typo'd
+  // or made-up state (bypassing the wizard UI and calling this endpoint
+  // directly) proceeded with no state-filing-fee line item charged at all,
+  // even though FormRight still has to pay that state's real filing fee.
   const stateFeeDetail = await getStateFeeForEntity(data.state, family);
-  const stateFeeCents = stateFeeDetail?.feeCents ?? 0;
+  if (!stateFeeDetail) {
+    return NextResponse.json({ error: "We don't have state filing fee pricing for this state yet — please contact support." }, { status: 400 });
+  }
+  const stateFeeCents = stateFeeDetail.feeCents;
   // Recurring addons (e.g. Comply) aren't sellable as a one-time Checkout
   // line item — Stripe Checkout can't mix one-time and recurring items in
   // "payment" mode. Those are subscribed to separately after formation; see

@@ -85,6 +85,7 @@ export interface OnboardState {
   selectPlan: (key: string) => void;
   toggleAddon: (key: string) => void;
   goToStep: (step: number) => void;
+  reset: () => void;
 
   // derived
   entityFamily: () => EntityFamily;
@@ -171,6 +172,20 @@ export const useOnboardStore = create<OnboardState>((set, get) => ({
     }),
 
   goToStep: (step) => set({ step }),
+
+  // BUG (fixed): there was no way to clear the wizard back to a blank slate.
+  // This store is a module-level singleton (not reset on navigation), so
+  // starting a second formation in the same browser session — e.g. via a
+  // "Form another entity" link from the dashboard — resumed with the
+  // previous entity's name/address/board/plan/addons still filled in.
+  reset: () =>
+    set({
+      ...initialState,
+      board: initialState.board.map((m) => ({ ...m })),
+      policies: { ...initialState.policies },
+      irs: { ...initialState.irs },
+      addonKeys: new Set<string>(),
+    }),
 
   entityFamily: () => entityFamily(get().orgtype),
 
