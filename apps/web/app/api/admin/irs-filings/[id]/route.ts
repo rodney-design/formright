@@ -44,9 +44,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     update.determinationLetterS3Key = storageKey;
   }
 
+  // BUG (fixed): updateIrsFiling() returns null both when `update` came in
+  // empty and when params.id doesn't match any row — this route used to
+  // treat both as the same 400 "Nothing to update", so a bad/stale filing
+  // ID silently looked like a client input error instead of a 404.
+  if (Object.keys(update).length === 0) {
+    return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
+  }
+
   const updated = await updateIrsFiling(params.id, update);
   if (!updated) {
-    return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   return NextResponse.json({ irsFiling: updated });

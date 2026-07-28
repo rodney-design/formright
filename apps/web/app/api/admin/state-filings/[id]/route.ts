@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
-import { updateStateFiling, MissingStateConfirmationError } from "@/lib/queries/stateFilings";
+import { updateStateFiling, getStateFilingById, MissingStateConfirmationError } from "@/lib/queries/stateFilings";
 import { FILING_STATUSES, type FilingStatus } from "@/lib/state-filing/status";
 import { uploadDocument } from "@/lib/storage";
 import { assignContractorToStateFiling } from "@/lib/queries/contractors";
@@ -51,6 +51,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     update.stampedDocS3Key = storageKey;
   }
 
+  const hasFieldUpdate = Object.keys(update).length > 0;
+  const hasAssignmentUpdate = typeof assignedContractorId === "string";
+
+  if (!hasFieldUpdate && !hasAssignmentUpdate) {
+    return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
+  }
+
   let updated;
   try {
     updated = await updateStateFiling(params.id, update);
@@ -61,12 +68,27 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     throw err;
   }
 
-  if (typeof assignedContractorId === "string") {
+  // BUG (fixed): updateStateFiling() returns null both when `update` was
+  // empty and when params.id doesn't match any row — with fields actually
+  // provided, a null result means the ID is bad, not that there was
+  // nothing to do.
+  if (hasFieldUpdate && !updated) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  if (hasAssignmentUpdate) {
     await assignContractorToStateFiling(params.id, assignedContractorId || null);
   }
 
-  if (!updated && typeof assignedContractorId !== "string") {
-    return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
+  // BUG (fixed): an assignment-only request left `updated` null and
+  // returned { stateFiling: null } even on success. Re-fetch the current
+  // row so the response reflects what's actually stored, and 404 if the
+  // assignment silently matched zero rows because the ID doesn't exist.
+  if (!updated) {
+    updated = await getStateFilingById(params.id);
+    if (!updated) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
   }
 
   return NextResponse.json({ stateFiling: updated });
