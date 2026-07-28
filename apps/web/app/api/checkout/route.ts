@@ -79,17 +79,19 @@ export async function POST(req: NextRequest) {
   // Find-or-create the user by email. We deliberately do NOT create a session
   // here — anyone can type an email into a checkout form, so proving
   // ownership still requires the magic-link flow (see lib/auth.ts).
-  const existingUser = await query<{ id: string }>("SELECT id FROM users WHERE email = $1", [data.email]);
-  let userId: string;
-  if (existingUser.rows.length > 0) {
-    userId = existingUser.rows[0].id;
-  } else {
-    const inserted = await query<{ id: string }>(
-      "INSERT INTO users (email, name) VALUES ($1, $2) RETURNING id",
-      [data.email, `${data.fname} ${data.lname}`.trim()]
-    );
-    userId = inserted.rows[0].id;
-  }
+  //
+  // BUG (fixed): this used to SELECT-then-branch to INSERT, with no
+  // transaction/locking — the same check-then-insert race already fixed in
+  // lib/auth.ts's createMagicLinkToken and the v1 formations route. Two
+  // concurrent checkout submissions with the same brand-new email could
+  // race between the SELECT and INSERT on users.email's UNIQUE constraint.
+  const upserted = await query<{ id: string }>(
+    `INSERT INTO users (email, name) VALUES ($1, $2)
+     ON CONFLICT (email) DO UPDATE SET email = users.email
+     RETURNING id`,
+    [data.email, `${data.fname} ${data.lname}`.trim()]
+  );
+  const userId = upserted.rows[0].id;
 
   const registrationId = generateRegistrationId();
   const notes = JSON.stringify({

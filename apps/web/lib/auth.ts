@@ -28,19 +28,20 @@ export async function createMagicLinkToken(email: string, name?: string): Promis
   const token = crypto.randomBytes(32).toString("hex");
   const expiry = new Date(Date.now() + MAGIC_LINK_TTL_MS);
 
-  const existing = await query<{ id: string }>("SELECT id FROM users WHERE email = $1", [email]);
-  if (existing.rows.length > 0) {
-    await query("UPDATE users SET magic_link_token = $1, token_expiry = $2 WHERE email = $3", [
-      token,
-      expiry,
-      email,
-    ]);
-  } else {
-    await query(
-      "INSERT INTO users (email, name, magic_link_token, token_expiry) VALUES ($1, $2, $3, $4)",
-      [email, name ?? null, token, expiry]
-    );
-  }
+  // BUG (fixed): this used to SELECT-then-branch to INSERT or UPDATE, with
+  // no transaction/locking. users.email is UNIQUE NOT NULL — two concurrent
+  // requests for the same new email both see "not found" and both attempt
+  // INSERT; the loser threw an uncaught unique-violation instead of a clean
+  // error. A single INSERT ... ON CONFLICT DO UPDATE is atomic and removes
+  // the race entirely, while preserving the original behavior of never
+  // touching `name` on an already-existing user (only the insert path sets
+  // it — the ON CONFLICT branch only updates the token/expiry columns).
+  await query(
+    `INSERT INTO users (email, name, magic_link_token, token_expiry)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (email) DO UPDATE SET magic_link_token = EXCLUDED.magic_link_token, token_expiry = EXCLUDED.token_expiry`,
+    [email, name ?? null, token, expiry]
+  );
   return token;
 }
 

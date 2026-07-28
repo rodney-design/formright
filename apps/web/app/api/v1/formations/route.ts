@@ -66,17 +66,21 @@ export async function POST(req: NextRequest) {
   const stateFeeDetail = await getStateFeeForEntity(data.state, family);
   const stateFeeCents = stateFeeDetail?.feeCents ?? 0;
 
-  const existingUser = await query<{ id: string }>("SELECT id FROM users WHERE email = $1", [data.contactEmail]);
-  let userId: string;
-  if (existingUser.rows.length > 0) {
-    userId = existingUser.rows[0].id;
-  } else {
-    const inserted = await query<{ id: string }>(
-      "INSERT INTO users (email, name) VALUES ($1, $2) RETURNING id",
-      [data.contactEmail, data.contactName]
-    );
-    userId = inserted.rows[0].id;
-  }
+  // BUG (fixed): this used to SELECT-then-branch to INSERT, with no
+  // transaction/locking. users.email is UNIQUE NOT NULL — two concurrent
+  // requests for the same new client email (a firm's integration retrying,
+  // or two near-simultaneous formations for a new client) both saw "not
+  // found" and both attempted INSERT; the loser threw an uncaught
+  // unique-violation with nothing here to catch it. INSERT ... ON CONFLICT
+  // DO UPDATE (a no-op update, just to make RETURNING work on the conflict
+  // path too) finds-or-creates the user in one atomic statement.
+  const upserted = await query<{ id: string }>(
+    `INSERT INTO users (email, name) VALUES ($1, $2)
+     ON CONFLICT (email) DO UPDATE SET email = users.email
+     RETURNING id`,
+    [data.contactEmail, data.contactName]
+  );
+  const userId = upserted.rows[0].id;
 
   const registrationId = generateRegistrationId();
   const notes = JSON.stringify({ orgtypeRaw: data.orgtype, source: "api_v1" });
