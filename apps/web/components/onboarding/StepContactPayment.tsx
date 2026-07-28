@@ -1,11 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useOnboardStore } from "@/lib/store/onboardStore";
 import { ADDONS, getPlansForEntity } from "@/lib/entities/pricing";
 import { getStateFee } from "@/lib/entities/stateFees";
 import { Field, TextInput, FormActions } from "./fields";
 import { Button } from "@/components/ui/Button";
+
+interface Quote {
+  stateFeeCents: number;
+  stateFeeNotes: string | null;
+  totalCents: number | null;
+}
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -29,11 +35,50 @@ export default function StepContactPayment({
   const defaultPlan = plans.find((p) => p.featured) ?? plans[0];
   const selectedPlan = plans.find((p) => p.key === s.selectedPlanKey) ?? defaultPlan;
   const oneTimeAddons = ADDONS.filter((a) => !a.recurring);
-  const stateFeeCents = getStateFee(s.state) ? getStateFee(s.state)! * 100 : 0;
   const addonsCents = oneTimeAddons
     .filter((a) => s.addonKeys.has(a.key))
     .reduce((sum, a) => sum + a.priceCents, 0);
-  const totalCents = (selectedPlan?.priceCents ?? 0) + stateFeeCents + addonsCents;
+
+  // Local flat-rate estimate — shown immediately and as a fallback if the
+  // quote request below hasn't resolved yet or fails. /api/checkout charges
+  // from the normalized DB state_fees table, which can differ per state, so
+  // this is only ever a placeholder; `quote` below is the source of truth
+  // once it loads.
+  const localStateFeeCents = getStateFee(s.state) ? getStateFee(s.state)! * 100 : 0;
+  const localTotalCents = (selectedPlan?.priceCents ?? 0) + localStateFeeCents + addonsCents;
+
+  const [quote, setQuote] = useState<Quote | null>(null);
+  const requestIdRef = useRef(0);
+  const addonKeysSignature = Array.from(s.addonKeys).sort().join(",");
+
+  useEffect(() => {
+    if (!s.state || !s.orgtype || !selectedPlan || selectedPlan.priceCents === null) {
+      setQuote(null);
+      return;
+    }
+    const requestId = ++requestIdRef.current;
+    fetch("/api/quote", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        orgtype: s.orgtype,
+        state: s.state,
+        planKey: selectedPlan.key,
+        addonKeys: Array.from(s.addonKeys),
+      }),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json: Quote | null) => {
+        if (requestIdRef.current === requestId) setQuote(json);
+      })
+      .catch(() => {
+        if (requestIdRef.current === requestId) setQuote(null);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.state, s.orgtype, selectedPlan?.key, addonKeysSignature]);
+
+  const stateFeeCents = quote?.stateFeeCents ?? localStateFeeCents;
+  const totalCents = quote?.totalCents ?? localTotalCents;
 
   async function submit() {
     const emailOk = EMAIL_RE.test(s.email);

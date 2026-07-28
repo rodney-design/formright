@@ -7,14 +7,14 @@ const STATUS_OPTIONS = ["pending", "paid", "in_review", "filed", "complete", "pa
 export default function AdminRegDetailForm({
   id,
   status: initialStatus,
-  notes: initialNotes,
+  adminNotes: initialAdminNotes,
 }: {
   id: string;
   status: string;
-  notes: string;
+  adminNotes: string;
 }) {
   const [status, setStatus] = useState(initialStatus);
-  const [notes, setNotes] = useState(initialNotes);
+  const [adminNotes, setAdminNotes] = useState(initialAdminNotes);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -25,7 +25,7 @@ export default function AdminRegDetailForm({
       await fetch(`/api/admin/registrations/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status, notes }),
+        body: JSON.stringify({ status, adminNotes }),
       });
       setSaved(true);
     } finally {
@@ -50,8 +50,8 @@ export default function AdminRegDetailForm({
       </select>
       <label className="block text-sm font-medium text-gray-700 mb-1.5">Internal Notes</label>
       <textarea
-        value={notes}
-        onChange={(e) => setNotes(e.target.value)}
+        value={adminNotes}
+        onChange={(e) => setAdminNotes(e.target.value)}
         rows={4}
         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
         placeholder="Internal notes about this registration..."

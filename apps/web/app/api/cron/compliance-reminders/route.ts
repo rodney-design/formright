@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { sendComplianceReminderEmail } from "@/lib/email";
+import { PAID_REGISTRATION_STATUSES } from "@/lib/registrationStatus";
 
 export const runtime = "nodejs";
 
@@ -33,9 +34,13 @@ export async function GET(req: NextRequest) {
      FROM compliance_events ce
      JOIN registrations r ON r.id = ce.registration_id
      WHERE ce.status = 'pending'
+       -- Events are seeded at registration creation, before payment — without
+       -- this, someone who abandons checkout still gets "your entity's
+       -- annual report is due" emails for an entity that was never formed.
+       AND r.status = ANY($2::text[])
        AND (ce.due_date - CURRENT_DATE) = ANY($1::int[])
        AND (ce.reminded_at IS NULL OR ce.reminded_at::date < CURRENT_DATE)`,
-    [REMINDER_WINDOWS]
+    [REMINDER_WINDOWS, PAID_REGISTRATION_STATUSES]
   );
 
   let sent = 0;

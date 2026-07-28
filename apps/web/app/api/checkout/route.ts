@@ -6,10 +6,16 @@ import { getStripe } from "@/lib/stripe";
 import { entityFamily } from "@/lib/entities/entityFamily";
 import { getStateFeeForEntity } from "@/lib/entities/stateFeesTable";
 import { ADDONS, getPlansForEntity } from "@/lib/entities/pricing";
-import { generateRegistrationId } from "@/lib/registrationId";
+import { insertRegistrationWithUniqueId } from "@/lib/registrationId";
 import { seedComplianceEventsForRegistration } from "@/lib/entities/complianceRulesTable";
+import { checkRateLimit, getClientIp, RateLimitError } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
+
+// Unauthenticated — anyone can POST here, and each call writes a users row,
+// a registrations row, and compliance events even before Stripe is involved.
+// Without a limit this is trivially scriptable DB pollution.
+const PER_IP_LIMIT_PER_MINUTE = 10;
 
 const boardMemberSchema = z.object({
   name: z.string(),
@@ -46,6 +52,18 @@ const checkoutSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  try {
+    checkRateLimit(`checkout:ip:${getClientIp(req)}`, PER_IP_LIMIT_PER_MINUTE);
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again shortly." },
+        { status: 429, headers: { "Retry-After": String(err.retryAfterSeconds) } }
+      );
+    }
+    throw err;
+  }
+
   const body = await req.json().catch(() => null);
   const parsed = checkoutSchema.safeParse(body);
   if (!parsed.success) {
@@ -91,7 +109,6 @@ export async function POST(req: NextRequest) {
     userId = inserted.rows[0].id;
   }
 
-  const registrationId = generateRegistrationId();
   const notes = JSON.stringify({
     orgtypeRaw: data.orgtype,
     nonprofitSubtype: data.caNonprofitSubtype,
@@ -108,29 +125,31 @@ export async function POST(req: NextRequest) {
     phone: data.phone,
   });
 
-  await query(
-    `INSERT INTO registrations
-       (id, user_id, orgname, entity_type, state, plan, status, amount_cents, state_fee_cents,
-        board, mission, contact_name, contact_email, address, ein, fiscal_year, notes)
-     VALUES ($1,$2,$3,$4,$5,$6,'pending',$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
-    [
-      registrationId,
-      userId,
-      data.orgname,
-      family,
-      data.state,
-      plan.name,
-      totalCents,
-      stateFeeCents,
-      JSON.stringify(data.board),
-      data.mission,
-      `${data.fname} ${data.lname}`.trim(),
-      data.email,
-      JSON.stringify({ address: data.address, city: data.city, zip: data.zip }),
-      data.ein,
-      data.fiscal,
-      notes,
-    ]
+  const { id: registrationId } = await insertRegistrationWithUniqueId((id) =>
+    query(
+      `INSERT INTO registrations
+         (id, user_id, orgname, entity_type, state, plan, status, amount_cents, state_fee_cents,
+          board, mission, contact_name, contact_email, address, ein, fiscal_year, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,'pending',$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+      [
+        id,
+        userId,
+        data.orgname,
+        family,
+        data.state,
+        plan.name,
+        totalCents,
+        stateFeeCents,
+        JSON.stringify(data.board),
+        data.mission,
+        `${data.fname} ${data.lname}`.trim(),
+        data.email,
+        JSON.stringify({ address: data.address, city: data.city, zip: data.zip }),
+        data.ein,
+        data.fiscal,
+        notes,
+      ]
+    )
   );
 
   const complianceEvents = await seedComplianceEventsForRegistration(family, data.state, new Date(), data.fiscal);

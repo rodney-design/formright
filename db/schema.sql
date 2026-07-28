@@ -40,7 +40,8 @@ CREATE TABLE registrations (
   address JSONB,
   ein TEXT,
   fiscal_year TEXT,
-  notes TEXT,
+  notes TEXT,                           -- structured JSON written by checkout; not for free-text edits, see admin_notes
+  admin_notes TEXT,                     -- free-text notes editable from the admin dashboard
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

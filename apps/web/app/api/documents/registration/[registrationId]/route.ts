@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
+import { getFirmMembershipForUser } from "@/lib/queries/firms";
 import { entityFamily } from "@/lib/entities/entityFamily";
 import { getDocsForEntity } from "@/lib/entities/entityDocsMap";
 import { orgDataFromRegistration, type RegistrationRow } from "@/lib/entities/orgDataFromRegistration";
@@ -8,17 +9,25 @@ import { generateAllDocsZip } from "@/lib/doc-engine/zip";
 import { generateAndStoreDocument } from "@/lib/doc-engine/generateAndStore";
 import { getFirmBrandingForRegistration } from "@/lib/doc-engine/branding";
 import { getNonprofitStatute, deriveCaliforniaSubtype } from "@/lib/entities/nonprofitStatutesTable";
+import { PAID_REGISTRATION_STATUSES } from "@/lib/registrationStatus";
 
 export const runtime = "nodejs";
 
-async function loadRegistration(registrationId: string, userId: string, isAdmin: boolean) {
-  const result = await query<RegistrationRow & { user_id: string; entity_type: string; firm_id: string | null }>(
+// 'pending', which /api/checkout writes *before* Stripe payment completes,
+// must not unlock the generated document package.
+const PAID_STATUSES = new Set<string>(PAID_REGISTRATION_STATUSES);
+
+async function loadRegistration(registrationId: string, userId: string, isAdmin: boolean, memberFirmId: string | null) {
+  const result = await query<RegistrationRow & { user_id: string; entity_type: string; status: string; firm_id: string | null }>(
     "SELECT * FROM registrations WHERE id = $1",
     [registrationId]
   );
   const reg = result.rows[0];
   if (!reg) return null;
-  if (!isAdmin && reg.user_id !== userId) return null;
+  if (isAdmin) return reg;
+  const owns = reg.user_id === userId || (memberFirmId !== null && reg.firm_id === memberFirmId);
+  if (!owns) return null;
+  if (!PAID_STATUSES.has(reg.status)) return null;
   return reg;
 }
 
@@ -32,7 +41,8 @@ export async function GET(req: NextRequest, { params }: { params: { registration
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const isAdmin = user.role === "admin" || user.role === "super_admin";
-  const reg = await loadRegistration(params.registrationId, user.id, isAdmin);
+  const membership = isAdmin ? null : await getFirmMembershipForUser(user.id);
+  const reg = await loadRegistration(params.registrationId, user.id, isAdmin, membership?.firm.id ?? null);
   if (!reg) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const org = orgDataFromRegistration(reg);

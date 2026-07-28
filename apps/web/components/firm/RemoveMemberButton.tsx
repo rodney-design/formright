@@ -10,7 +10,12 @@ export default function RemoveMemberButton({ memberId }: { memberId: string }) {
     setRemoving(true);
     try {
       const res = await fetch(`/api/firm/members/${memberId}`, { method: "DELETE" });
-      if (res.ok) window.location.reload();
+      if (res.ok) {
+        window.location.reload();
+      } else {
+        const json = await res.json().catch(() => null);
+        alert(json?.error ?? "Could not remove this team member.");
+      }
     } finally {
       setRemoving(false);
     }

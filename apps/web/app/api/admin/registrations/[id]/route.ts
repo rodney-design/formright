@@ -7,7 +7,7 @@ const STATUS_VALUES = ["pending", "paid", "in_review", "filed", "complete", "pay
 
 const patchSchema = z.object({
   status: z.enum(STATUS_VALUES).optional(),
-  notes: z.string().optional(),
+  adminNotes: z.string().optional(),
 });
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
@@ -23,16 +23,19 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
-  const { status, notes } = parsed.data;
-  if (status === undefined && notes === undefined) {
+  const { status, adminNotes } = parsed.data;
+  if (status === undefined && adminNotes === undefined) {
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
   }
 
   if (status !== undefined) {
     await query("UPDATE registrations SET status = $1 WHERE id = $2", [status, params.id]);
   }
-  if (notes !== undefined) {
-    await query("UPDATE registrations SET notes = $1 WHERE id = $2", [notes, params.id]);
+  // Deliberately writes admin_notes, never notes — notes holds structured
+  // purchase JSON (addons, IRS screening answers, RA info) read back by the
+  // Stripe webhook and doc engine; a free-text admin save must not clobber it.
+  if (adminNotes !== undefined) {
+    await query("UPDATE registrations SET admin_notes = $1 WHERE id = $2", [adminNotes, params.id]);
   }
 
   return NextResponse.json({ ok: true });
