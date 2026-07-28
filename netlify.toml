@@ -1,6 +1,11 @@
 [build]
   base = "apps/web"
-  command = "npm run build"
+  # Applies any pending db/migrations/*.sql to DATABASE_URL before building —
+  # see apps/web/scripts/migrate.js. Only actually touches the database for
+  # the production context; deploy previews/branch deploys share the same
+  # DATABASE_URL as production (see README) and must not apply schema
+  # changes for code that might never be merged.
+  command = "npm run migrate && npm run build"
   publish = ".next"
 
 [[plugins]]

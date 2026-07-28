@@ -31,13 +31,34 @@ psql formright -f ../db/schema.sql
 ```
 
 **Use `db/schema.sql` for this — not `db/migrations/`.** `schema.sql` is the canonical,
-always-current schema and the only supported path for a fresh install. `db/migrations/*.sql`
-are historical documentation of how each feature's tables were originally added (and are cited
-by file throughout this README for that reason) — they are not a real incremental chain you can
-replay against an existing database. In particular, `001_init.sql` itself pulls in the entire
-current `schema.sql` (not just what Phase 1 looked like), so running any later migration after
-it fails with "already exists." Don't run `schema.sql` and the migrations directory against the
-same database.
+always-current schema and the only supported path for a fresh install by hand.
+`db/migrations/001` through `016` are historical documentation of how each feature's tables were
+originally added (and are cited by file throughout this README for that reason), not a real
+incremental chain you can replay against an existing database — `001_init.sql` itself pulls in
+the entire current `schema.sql` (not just what Phase 1 looked like), so running any later
+migration after it fails with "already exists." Don't run `schema.sql` and migrations 001-016
+against the same database by hand.
+
+From `017` onward, migrations are real, small, individually-safe-to-replay `ALTER`s — see
+"Automated migrations" below.
+
+### Automated migrations
+
+`apps/web/scripts/migrate.js` runs automatically before every Netlify **production** build (see
+`netlify.toml`) and applies any `db/migrations/*.sql` file not yet recorded in a `schema_migrations`
+tracking table, in filename order. It bootstraps itself on first run: a genuinely fresh database
+gets `db/schema.sql` loaded and then every existing migration file stamped as already-applied; a
+database that already has a `registrations` table (e.g. one someone loaded `schema.sql` into by
+hand) gets the same stamp without re-running anything. This exists because merging a migration
+into the default branch used to auto-deploy new *code* without ever applying the corresponding
+schema change — migrations `017`-`019` sat un-applied against the live database for a day, silently
+breaking registered-agent order fulfillment and admin-notes saves, until caught by hand.
+
+It intentionally only runs for the `production` Netlify context — deploy previews and branch
+deploys share the *same* `DATABASE_URL` as production (all four Netlify env-var contexts point at
+one Supabase instance), so a PR that's never merged must not be able to alter the live schema.
+Run it manually with `npm run migrate` (respects `DATABASE_URL` from your shell/`.env.local`, and
+runs unconditionally if `CONTEXT` isn't set).
 
 ### Environment variables
 
