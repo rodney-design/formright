@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireContractor } from "@/lib/auth";
 import { getContractorByUserId } from "@/lib/queries/contractors";
-import { getStateFilingById, updateStateFiling } from "@/lib/queries/stateFilings";
+import { getStateFilingById, updateStateFiling, MissingStateConfirmationError } from "@/lib/queries/stateFilings";
 import { FILING_STATUSES, type FilingStatus } from "@/lib/state-filing/status";
 import { uploadDocument } from "@/lib/storage";
 
@@ -62,7 +62,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     update.stampedDocS3Key = storageKey;
   }
 
-  const updated = await updateStateFiling(params.id, update);
+  let updated;
+  try {
+    updated = await updateStateFiling(params.id, update);
+  } catch (err) {
+    if (err instanceof MissingStateConfirmationError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
+    throw err;
+  }
   if (!updated) {
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
   }

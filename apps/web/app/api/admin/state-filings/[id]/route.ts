@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
-import { updateStateFiling } from "@/lib/queries/stateFilings";
+import { updateStateFiling, MissingStateConfirmationError } from "@/lib/queries/stateFilings";
 import { FILING_STATUSES, type FilingStatus } from "@/lib/state-filing/status";
 import { uploadDocument } from "@/lib/storage";
 import { assignContractorToStateFiling } from "@/lib/queries/contractors";
@@ -43,12 +43,23 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
   if (stampedDoc instanceof File && stampedDoc.size > 0) {
     const buffer = Buffer.from(await stampedDoc.arrayBuffer());
-    const storageKey = `state-filings/${params.id}/stamped_${Date.now()}_${stampedDoc.name}`;
+    // BUG (fixed): same unsanitized-filename issue as the contractor-facing
+    // equivalent route — see that file's comment for the full explanation.
+    const safeName = stampedDoc.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const storageKey = `state-filings/${params.id}/stamped_${Date.now()}_${safeName}`;
     await uploadDocument(storageKey, buffer, stampedDoc.type || "application/pdf");
     update.stampedDocS3Key = storageKey;
   }
 
-  const updated = await updateStateFiling(params.id, update);
+  let updated;
+  try {
+    updated = await updateStateFiling(params.id, update);
+  } catch (err) {
+    if (err instanceof MissingStateConfirmationError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
+    throw err;
+  }
 
   if (typeof assignedContractorId === "string") {
     await assignContractorToStateFiling(params.id, assignedContractorId || null);
