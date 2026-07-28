@@ -34,17 +34,18 @@ export async function POST(req: NextRequest) {
   const firmResult = await query<{ id: string }>("INSERT INTO firms (name) VALUES ($1) RETURNING id", [name]);
   const firmId = firmResult.rows[0].id;
 
-  const existingUser = await query<{ id: string }>("SELECT id FROM users WHERE email = $1", [adminEmail]);
-  let userId: string;
-  if (existingUser.rows.length > 0) {
-    userId = existingUser.rows[0].id;
-  } else {
-    const inserted = await query<{ id: string }>("INSERT INTO users (email, name) VALUES ($1, $2) RETURNING id", [
-      adminEmail,
-      adminName || null,
-    ]);
-    userId = inserted.rows[0].id;
-  }
+  // BUG (fixed): same check-then-insert race on users.email already fixed
+  // elsewhere (lib/auth.ts, api/checkout, api/v1/formations) — two admins
+  // creating a firm for the same brand-new admin email at once (or one
+  // admin double-clicking) could both see "not found" and both attempt
+  // INSERT, the loser throwing an uncaught unique-violation.
+  const upsertedUser = await query<{ id: string }>(
+    `INSERT INTO users (email, name) VALUES ($1, $2)
+     ON CONFLICT (email) DO UPDATE SET email = users.email
+     RETURNING id`,
+    [adminEmail, adminName || null]
+  );
+  const userId = upsertedUser.rows[0].id;
 
   await query(
     `INSERT INTO firm_members (firm_id, user_id, role, invited_at, joined_at)
