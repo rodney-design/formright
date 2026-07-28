@@ -21,6 +21,17 @@ function jwtSecret(): string {
   return secret;
 }
 
+// BUG (fixed): session and magic-link tokens used to be stored verbatim in
+// `sessions.token` / `users.magic_link_token`. Both are high-entropy
+// (a signed JWT, a 32-byte random hex string) so they're not guessable —
+// the risk is a DB-only compromise (a leaked backup, an over-broad service-
+// role query) handing over live, directly-usable session/login credentials
+// with no further work needed. Hashing before every write and lookup means
+// the stored value alone can't be replayed even if the database leaks.
+function hashToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
 // ── Magic link request/verify ──────────────────────────────────────────────
 // Replaces the prototype's demo bypass (any email/password → dashboard).
 
@@ -40,7 +51,7 @@ export async function createMagicLinkToken(email: string, name?: string): Promis
     `INSERT INTO users (email, name, magic_link_token, token_expiry)
      VALUES ($1, $2, $3, $4)
      ON CONFLICT (email) DO UPDATE SET magic_link_token = EXCLUDED.magic_link_token, token_expiry = EXCLUDED.token_expiry`,
-    [email, name ?? null, token, expiry]
+    [email, name ?? null, hashToken(token), expiry]
   );
   return token;
 }
@@ -54,7 +65,7 @@ export async function consumeMagicLinkToken(token: string): Promise<SessionUser 
     token_expiry: string;
   }>(
     "SELECT id, email, name, role, token_expiry FROM users WHERE magic_link_token = $1",
-    [token]
+    [hashToken(token)]
   );
   const user = result.rows[0];
   if (!user) return null;
@@ -75,7 +86,7 @@ export async function createSession(userId: string): Promise<void> {
 
   await query("INSERT INTO sessions (user_id, token, expires_at) VALUES ($1, $2, $3)", [
     userId,
-    token,
+    hashToken(token),
     expiresAt,
   ]);
 
@@ -93,7 +104,7 @@ export async function destroySession(): Promise<void> {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (token) {
-    await query("DELETE FROM sessions WHERE token = $1", [token]);
+    await query("DELETE FROM sessions WHERE token = $1", [hashToken(token)]);
   }
   cookieStore.delete(SESSION_COOKIE);
 }
@@ -119,7 +130,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     `SELECT u.id, u.email, u.name, u.role, s.expires_at
      FROM sessions s JOIN users u ON u.id = s.user_id
      WHERE s.token = $1`,
-    [token]
+    [hashToken(token)]
   );
   const row = result.rows[0];
   if (!row) return null;
