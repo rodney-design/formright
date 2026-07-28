@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 import { requireFirmAdmin, countActiveFirmMembers } from "@/lib/queries/firms";
+import { getFirmSubscription } from "@/lib/queries/firmSubscriptions";
 import { FIRM_SEAT_PRICE_CENTS } from "@/lib/entities/pricing";
 
 export const runtime = "nodejs";
@@ -16,6 +17,19 @@ export async function POST(req: NextRequest) {
     admin = await requireFirmAdmin();
   } catch {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  // BUG (fixed): nothing checked for an existing active subscription before
+  // creating a brand-new Stripe Checkout session — a double-click, browser
+  // back-button resubmit, or client retry after a slow/timed-out response
+  // could create two concurrent paid seat subscriptions for the same firm,
+  // an actual double charge with no malicious action required.
+  const existingSubscription = await getFirmSubscription(admin.membership.firm.id);
+  if (existingSubscription && existingSubscription.status !== "canceled") {
+    return NextResponse.json(
+      { error: "This firm already has an active Pro subscription.", alreadySubscribed: true },
+      { status: 409 }
+    );
   }
 
   const seatPriceCents = FIRM_SEAT_PRICE_CENTS;

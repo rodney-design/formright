@@ -8,9 +8,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const getCurrentUserMock = vi.fn();
 const getRegistrationByIdMock = vi.fn();
 const createSessionMock = vi.fn();
+const getSubscriptionsForUserMock = vi.fn();
 
 vi.mock("@/lib/auth", () => ({ getCurrentUser: getCurrentUserMock }));
 vi.mock("@/lib/queries/registrations", () => ({ getRegistrationById: getRegistrationByIdMock }));
+vi.mock("@/lib/queries/subscriptions", () => ({ getSubscriptionsForUser: getSubscriptionsForUserMock }));
 vi.mock("@/lib/stripe", () => ({
   getStripe: () => ({ checkout: { sessions: { create: createSessionMock } } }),
 }));
@@ -30,6 +32,7 @@ beforeEach(() => {
   vi.unstubAllEnvs();
   getCurrentUserMock.mockResolvedValue(null); // exercise the unauthenticated path
   createSessionMock.mockResolvedValue({ url: "https://checkout.stripe.com/session_abc" });
+  getSubscriptionsForUserMock.mockResolvedValue([]);
 });
 
 describe("POST /api/subscriptions/comply/checkout — unauthenticated lookup rate limiting", () => {
@@ -65,5 +68,44 @@ describe("POST /api/subscriptions/comply/checkout — unauthenticated lookup rat
     const { POST } = await import("@/app/api/subscriptions/comply/checkout/route");
     const res = await POST(await makeRequest({}, "198.51.100.22"));
     expect(res.status).toBe(401);
+  });
+});
+
+// Regression coverage for a real bug: nothing checked for an existing active
+// Comply subscription before creating a new one — a double-click or client
+// retry could create two concurrent paid subscriptions for the same user.
+describe("POST /api/subscriptions/comply/checkout — double-billing guard", () => {
+  it("rejects with 409 when the user already has an active Comply subscription", async () => {
+    getCurrentUserMock.mockResolvedValue({ id: "user-1", email: "founder@example.com" });
+    getSubscriptionsForUserMock.mockResolvedValue([{ plan: "comply", status: "active" }]);
+
+    const { POST } = await import("@/app/api/subscriptions/comply/checkout/route");
+    const res = await POST(await makeRequest({}, "198.51.100.30"));
+    const json = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(json.alreadySubscribed).toBe(true);
+    expect(createSessionMock).not.toHaveBeenCalled();
+  });
+
+  it("allows a new subscription when the existing one was canceled", async () => {
+    getCurrentUserMock.mockResolvedValue({ id: "user-1", email: "founder@example.com" });
+    getSubscriptionsForUserMock.mockResolvedValue([{ plan: "comply", status: "canceled" }]);
+
+    const { POST } = await import("@/app/api/subscriptions/comply/checkout/route");
+    const res = await POST(await makeRequest({}, "198.51.100.31"));
+
+    expect(res.status).toBe(200);
+    expect(createSessionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores subscriptions for a different plan (e.g. 'agent')", async () => {
+    getCurrentUserMock.mockResolvedValue({ id: "user-1", email: "founder@example.com" });
+    getSubscriptionsForUserMock.mockResolvedValue([{ plan: "agent", status: "active" }]);
+
+    const { POST } = await import("@/app/api/subscriptions/comply/checkout/route");
+    const res = await POST(await makeRequest({}, "198.51.100.32"));
+
+    expect(res.status).toBe(200);
   });
 });

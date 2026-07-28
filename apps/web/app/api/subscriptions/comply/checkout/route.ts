@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 import { getCurrentUser } from "@/lib/auth";
 import { getRegistrationById } from "@/lib/queries/registrations";
+import { getSubscriptionsForUser } from "@/lib/queries/subscriptions";
 import { ADDONS } from "@/lib/entities/pricing";
 import { checkRateLimit, RateLimitError } from "@/lib/rateLimit";
 
@@ -69,6 +70,18 @@ export async function POST(req: NextRequest) {
     }
     userId = reg.user_id;
     email = reg.contact_email;
+  }
+
+  // BUG (fixed): nothing checked for an existing active Comply subscription
+  // before creating a new one — a double-click, browser back-button
+  // resubmit, or client retry after a slow/timed-out response could create
+  // two concurrent paid subscriptions for the same user.
+  const existingSubscriptions = await getSubscriptionsForUser(userId);
+  if (existingSubscriptions.some((s) => s.plan === "comply" && s.status !== "canceled")) {
+    return NextResponse.json(
+      { error: "You already have an active Comply subscription.", alreadySubscribed: true },
+      { status: 409 }
+    );
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? req.nextUrl.origin;
