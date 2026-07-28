@@ -4,7 +4,7 @@ import { query } from "@/lib/db";
 import { requireApiKeyFirm, ApiAuthError, RateLimitError } from "@/lib/apiAuth";
 import { entityFamily } from "@/lib/entities/entityFamily";
 import { getStateFeeForEntity } from "@/lib/entities/stateFeesTable";
-import { generateRegistrationId } from "@/lib/registrationId";
+import { withRegistrationIdRetry } from "@/lib/registrationId";
 import { seedComplianceEventsForRegistration } from "@/lib/entities/complianceRulesTable";
 import { ensureStateFiling } from "@/lib/queries/stateFilings";
 import { getRegistrationsForFirm } from "@/lib/queries/registrations";
@@ -82,33 +82,39 @@ export async function POST(req: NextRequest) {
   );
   const userId = upserted.rows[0].id;
 
-  const registrationId = generateRegistrationId();
   const notes = JSON.stringify({ orgtypeRaw: data.orgtype, source: "api_v1" });
 
-  await query(
-    `INSERT INTO registrations
-       (id, user_id, firm_id, orgname, entity_type, state, plan, status, amount_cents, state_fee_cents,
-        board, mission, contact_name, contact_email, address, ein, fiscal_year, notes)
-     VALUES ($1,$2,$3,$4,$5,$6,'Pro (API)','paid',$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
-    [
-      registrationId,
-      userId,
-      firmId,
-      data.orgname,
-      family,
-      data.state,
-      stateFeeCents,
-      stateFeeCents,
-      JSON.stringify(data.board),
-      data.mission,
-      data.contactName,
-      data.contactEmail,
-      JSON.stringify({ address: data.address, city: data.city, zip: data.zip }),
-      data.ein,
-      data.fiscal,
-      notes,
-    ]
-  );
+  // BUG (fixed): generateRegistrationId()'s 6-digit id had no DB-side
+  // uniqueness check before this insert — see lib/registrationId.ts for the
+  // collision odds. withRegistrationIdRetry generates a fresh id and
+  // retries just this insert on a genuine collision.
+  const registrationId = await withRegistrationIdRetry(async (id) => {
+    await query(
+      `INSERT INTO registrations
+         (id, user_id, firm_id, orgname, entity_type, state, plan, status, amount_cents, state_fee_cents,
+          board, mission, contact_name, contact_email, address, ein, fiscal_year, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,'Pro (API)','paid',$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+      [
+        id,
+        userId,
+        firmId,
+        data.orgname,
+        family,
+        data.state,
+        stateFeeCents,
+        stateFeeCents,
+        JSON.stringify(data.board),
+        data.mission,
+        data.contactName,
+        data.contactEmail,
+        JSON.stringify({ address: data.address, city: data.city, zip: data.zip }),
+        data.ein,
+        data.fiscal,
+        notes,
+      ]
+    );
+    return id;
+  });
 
   for (const event of await seedComplianceEventsForRegistration(family, data.state, new Date(), data.fiscal)) {
     await query(

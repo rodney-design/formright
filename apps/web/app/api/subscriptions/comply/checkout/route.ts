@@ -3,6 +3,12 @@ import { getStripe } from "@/lib/stripe";
 import { getCurrentUser } from "@/lib/auth";
 import { getRegistrationById } from "@/lib/queries/registrations";
 import { ADDONS } from "@/lib/entities/pricing";
+import { checkRateLimit, RateLimitError } from "@/lib/rateLimit";
+
+function clientIp(req: NextRequest): string {
+  const forwarded = req.headers.get("x-forwarded-for");
+  return forwarded?.split(",")[0]?.trim() || "unknown";
+}
 
 export const runtime = "nodejs";
 
@@ -31,6 +37,28 @@ export async function POST(req: NextRequest) {
     userId = user.id;
     email = user.email;
   } else {
+    // BUG (fixed): registrationId is a 6-digit, plain-Math.random() public
+    // identifier (see lib/registrationId.ts) — it's the *only* proof of
+    // ownership on this unauthenticated path, with nothing here rate-
+    // limiting lookups. That made brute-force enumeration of valid
+    // registrationIds practical, letting an attacker create (and pay for) a
+    // Comply subscription attributed to a victim's account. Rate limiting
+    // by IP doesn't eliminate enumeration risk entirely (a longer opaque
+    // token would be the fuller fix, tracked separately), but it makes
+    // exhausting the 900,000-value space from a single IP impractically
+    // slow instead of instant.
+    try {
+      checkRateLimit(`comply-checkout-lookup:${clientIp(req)}`);
+    } catch (err) {
+      if (err instanceof RateLimitError) {
+        return NextResponse.json(
+          { error: "Too many requests. Please try again shortly." },
+          { status: 429, headers: { "Retry-After": String(err.retryAfterSeconds) } }
+        );
+      }
+      throw err;
+    }
+
     const body = await req.json().catch(() => null);
     const registrationId = typeof body?.registrationId === "string" ? body.registrationId : null;
     if (!registrationId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

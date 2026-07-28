@@ -6,7 +6,7 @@ import { getStripe } from "@/lib/stripe";
 import { entityFamily } from "@/lib/entities/entityFamily";
 import { getStateFeeForEntity } from "@/lib/entities/stateFeesTable";
 import { ADDONS, getPlansForEntity } from "@/lib/entities/pricing";
-import { generateRegistrationId } from "@/lib/registrationId";
+import { withRegistrationIdRetry } from "@/lib/registrationId";
 import { seedComplianceEventsForRegistration } from "@/lib/entities/complianceRulesTable";
 
 export const runtime = "nodejs";
@@ -93,7 +93,10 @@ export async function POST(req: NextRequest) {
   );
   const userId = upserted.rows[0].id;
 
-  const registrationId = generateRegistrationId();
+  // Assigned inside the try block below via withRegistrationIdRetry — kept
+  // outside so the catch block's rollback can still reference it if a
+  // later step (compliance seeding, Stripe) fails after a successful insert.
+  let registrationId: string | undefined;
   const notes = JSON.stringify({
     orgtypeRaw: data.orgtype,
     nonprofitSubtype: data.caNonprofitSubtype,
@@ -125,30 +128,39 @@ export async function POST(req: NextRequest) {
   // collision on the insert itself — gets the same rollback and clean error
   // response as a Stripe failure does.
   try {
-    await query(
-      `INSERT INTO registrations
-         (id, user_id, orgname, entity_type, state, plan, status, amount_cents, state_fee_cents,
-          board, mission, contact_name, contact_email, address, ein, fiscal_year, notes)
-       VALUES ($1,$2,$3,$4,$5,$6,'pending',$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
-      [
-        registrationId,
-        userId,
-        data.orgname,
-        family,
-        data.state,
-        plan.name,
-        totalCents,
-        stateFeeCents,
-        JSON.stringify(data.board),
-        data.mission,
-        `${data.fname} ${data.lname}`.trim(),
-        data.email,
-        JSON.stringify({ address: data.address, city: data.city, zip: data.zip }),
-        data.ein,
-        data.fiscal,
-        notes,
-      ]
-    );
+    // BUG (fixed): generateRegistrationId()'s 6-digit ID had no DB-side
+    // uniqueness check before this insert — a collision (see
+    // lib/registrationId.ts for the odds) threw an unhandled unique-
+    // violation. withRegistrationIdRetry generates a fresh id and retries
+    // just this insert on a genuine collision, rather than failing the
+    // whole checkout.
+    registrationId = await withRegistrationIdRetry(async (id) => {
+      await query(
+        `INSERT INTO registrations
+           (id, user_id, orgname, entity_type, state, plan, status, amount_cents, state_fee_cents,
+            board, mission, contact_name, contact_email, address, ein, fiscal_year, notes)
+         VALUES ($1,$2,$3,$4,$5,$6,'pending',$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+        [
+          id,
+          userId,
+          data.orgname,
+          family,
+          data.state,
+          plan.name,
+          totalCents,
+          stateFeeCents,
+          JSON.stringify(data.board),
+          data.mission,
+          `${data.fname} ${data.lname}`.trim(),
+          data.email,
+          JSON.stringify({ address: data.address, city: data.city, zip: data.zip }),
+          data.ein,
+          data.fiscal,
+          notes,
+        ]
+      );
+      return id;
+    });
 
     const complianceEvents = await seedComplianceEventsForRegistration(family, data.state, new Date(), data.fiscal);
     for (const event of complianceEvents) {
@@ -217,17 +229,22 @@ export async function POST(req: NextRequest) {
     // or the Stripe call — so roll everything for this registrationId back
     // rather than leaving a permanent orphaned "pending" row with no
     // payment attached and no retry path.
-    console.error(`Checkout failed for registration ${registrationId}:`, err);
+    console.error(`Checkout failed for registration ${registrationId ?? "(none created)"}:`, err);
     Sentry.captureException(err);
-    try {
-      await query("DELETE FROM compliance_events WHERE registration_id = $1", [registrationId]);
-      await query("DELETE FROM registrations WHERE id = $1", [registrationId]);
-    } catch (cleanupErr) {
-      // The client still gets a clean error either way — but if cleanup
-      // itself failed, that orphaned registration needs manual attention,
-      // so it's reported distinctly from the original Stripe failure.
-      console.error(`Failed to roll back orphaned registration ${registrationId}:`, cleanupErr);
-      Sentry.captureException(cleanupErr);
+    // registrationId is only unset if withRegistrationIdRetry itself threw
+    // (every retry hit a genuine collision, or a non-collision error) —
+    // nothing was ever inserted in that case, so there's nothing to clean up.
+    if (registrationId) {
+      try {
+        await query("DELETE FROM compliance_events WHERE registration_id = $1", [registrationId]);
+        await query("DELETE FROM registrations WHERE id = $1", [registrationId]);
+      } catch (cleanupErr) {
+        // The client still gets a clean error either way — but if cleanup
+        // itself failed, that orphaned registration needs manual attention,
+        // so it's reported distinctly from the original Stripe failure.
+        console.error(`Failed to roll back orphaned registration ${registrationId}:`, cleanupErr);
+        Sentry.captureException(cleanupErr);
+      }
     }
     return NextResponse.json({ error: "Could not create checkout session" }, { status: 502 });
   }
