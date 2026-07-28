@@ -108,81 +108,92 @@ export async function POST(req: NextRequest) {
     phone: data.phone,
   });
 
-  await query(
-    `INSERT INTO registrations
-       (id, user_id, orgname, entity_type, state, plan, status, amount_cents, state_fee_cents,
-        board, mission, contact_name, contact_email, address, ein, fiscal_year, notes)
-     VALUES ($1,$2,$3,$4,$5,$6,'pending',$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
-    [
-      registrationId,
-      userId,
-      data.orgname,
-      family,
-      data.state,
-      plan.name,
-      totalCents,
-      stateFeeCents,
-      JSON.stringify(data.board),
-      data.mission,
-      `${data.fname} ${data.lname}`.trim(),
-      data.email,
-      JSON.stringify({ address: data.address, city: data.city, zip: data.zip }),
-      data.ein,
-      data.fiscal,
-      notes,
-    ]
-  );
-
-  const complianceEvents = await seedComplianceEventsForRegistration(family, data.state, new Date(), data.fiscal);
-  for (const event of complianceEvents) {
-    await query(
-      `INSERT INTO compliance_events (registration_id, event_type, due_date)
-       VALUES ($1, $2, $3)`,
-      [registrationId, event.eventType, event.dueDate]
-    );
-  }
-
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? req.nextUrl.origin;
   const stripe = getStripe();
 
-  const lineItems: Array<{ price_data: { currency: string; product_data: { name: string; description?: string }; unit_amount: number }; quantity: number }> = [
-    {
-      price_data: {
-        currency: "usd",
-        product_data: { name: `FormRight ${plan.name} Plan — ${data.orgname}` },
-        unit_amount: plan.priceCents,
-      },
-      quantity: 1,
-    },
-  ];
-  if (stateFeeCents > 0) {
-    lineItems.push({
-      price_data: {
-        currency: "usd",
-        product_data: {
-          name: `${data.state} state filing fee`,
-          // Surfaces things this fee does NOT cover (e.g. CA's separate $800/yr
-          // franchise tax, NY's LLC publication requirement) at checkout time,
-          // not buried in a support ticket later.
-          ...(stateFeeDetail?.notes ? { description: stateFeeDetail.notes } : {}),
-        },
-        unit_amount: stateFeeCents,
-      },
-      quantity: 1,
-    });
-  }
-  for (const addon of selectedAddons) {
-    lineItems.push({
-      price_data: {
-        currency: "usd",
-        product_data: { name: addon.name, description: addon.description },
-        unit_amount: addon.priceCents,
-      },
-      quantity: 1,
-    });
-  }
-
+  // BUG (fixed): the registration INSERT and compliance-event seeding used
+  // to run *before* this try block, which only wrapped the Stripe call.
+  // That reintroduced the exact "orphaned pending registration" bug PR #1
+  // already fixed one step later in this same route — if seeding compliance
+  // events threw for any reason, the registration row committed above was
+  // permanently stuck in 'pending' status with no Stripe session ever
+  // created and no cleanup path (the catch block's rollback only ran for
+  // Stripe failures). Moving the insert + seeding inside this try means any
+  // failure anywhere in the sequence — including a registration-ID
+  // collision on the insert itself — gets the same rollback and clean error
+  // response as a Stripe failure does.
   try {
+    await query(
+      `INSERT INTO registrations
+         (id, user_id, orgname, entity_type, state, plan, status, amount_cents, state_fee_cents,
+          board, mission, contact_name, contact_email, address, ein, fiscal_year, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,'pending',$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+      [
+        registrationId,
+        userId,
+        data.orgname,
+        family,
+        data.state,
+        plan.name,
+        totalCents,
+        stateFeeCents,
+        JSON.stringify(data.board),
+        data.mission,
+        `${data.fname} ${data.lname}`.trim(),
+        data.email,
+        JSON.stringify({ address: data.address, city: data.city, zip: data.zip }),
+        data.ein,
+        data.fiscal,
+        notes,
+      ]
+    );
+
+    const complianceEvents = await seedComplianceEventsForRegistration(family, data.state, new Date(), data.fiscal);
+    for (const event of complianceEvents) {
+      await query(
+        `INSERT INTO compliance_events (registration_id, event_type, due_date)
+         VALUES ($1, $2, $3)`,
+        [registrationId, event.eventType, event.dueDate]
+      );
+    }
+
+    const lineItems: Array<{ price_data: { currency: string; product_data: { name: string; description?: string }; unit_amount: number }; quantity: number }> = [
+      {
+        price_data: {
+          currency: "usd",
+          product_data: { name: `FormRight ${plan.name} Plan — ${data.orgname}` },
+          unit_amount: plan.priceCents,
+        },
+        quantity: 1,
+      },
+    ];
+    if (stateFeeCents > 0) {
+      lineItems.push({
+        price_data: {
+          currency: "usd",
+          product_data: {
+            name: `${data.state} state filing fee`,
+            // Surfaces things this fee does NOT cover (e.g. CA's separate $800/yr
+            // franchise tax, NY's LLC publication requirement) at checkout time,
+            // not buried in a support ticket later.
+            ...(stateFeeDetail?.notes ? { description: stateFeeDetail.notes } : {}),
+          },
+          unit_amount: stateFeeCents,
+        },
+        quantity: 1,
+      });
+    }
+    for (const addon of selectedAddons) {
+      lineItems.push({
+        price_data: {
+          currency: "usd",
+          product_data: { name: addon.name, description: addon.description },
+          unit_amount: addon.priceCents,
+        },
+        quantity: 1,
+      });
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       line_items: lineItems,
@@ -199,10 +210,12 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ url: session.url, registrationId, totalCents });
   } catch (err) {
-    // Stripe never got a session created for this registration — roll it
-    // back rather than leaving a permanent orphaned "pending" row with no
+    // No Stripe session got created for this registration — whether the
+    // failure was the registration insert itself, compliance-event seeding,
+    // or the Stripe call — so roll everything for this registrationId back
+    // rather than leaving a permanent orphaned "pending" row with no
     // payment attached and no retry path.
-    console.error(`Failed to create Stripe checkout session for ${registrationId}:`, err);
+    console.error(`Checkout failed for registration ${registrationId}:`, err);
     Sentry.captureException(err);
     try {
       await query("DELETE FROM compliance_events WHERE registration_id = $1", [registrationId]);
