@@ -32,6 +32,18 @@ export async function submitStateFilingToProvider(
   filing: StateFiling,
   reg: RegistrationRow & { state: string; entity_type: string }
 ): Promise<void> {
+  // BUG (fixed): this had no guard against re-submitting a filing that's
+  // already been handed off to a vendor. ensureStateFiling() is itself
+  // idempotent and returns the existing row on repeat calls, but nothing
+  // stopped *this* function from running again for that same row (e.g. a
+  // Stripe webhook redelivery hitting this code path a second time) — which
+  // would submit a duplicate formation to the vendor and then overwrite
+  // provider_filing_id, orphaning any webhook already in flight for the
+  // original filing ID (it would 404 against the new one). provider
+  // defaults to 'manual' until the first successful submission, so a value
+  // other than that means this filing was already handed off.
+  if (filing.provider !== "manual") return;
+
   const provider = getFilingProvider(filing.state);
   if (!provider) return;
 
