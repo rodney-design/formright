@@ -47,7 +47,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
   if (stampedDoc instanceof File && stampedDoc.size > 0) {
     const buffer = Buffer.from(await stampedDoc.arrayBuffer());
-    const storageKey = `state-filings/${params.id}/stamped_${Date.now()}_${stampedDoc.name}`;
+    // BUG (fixed): stampedDoc.name came straight from the multipart upload
+    // with no sanitization, interpolated directly into the Supabase Storage
+    // object key. The [id]-scoped ownership check above is the only access
+    // control on this write path — an attacker-controlled filename
+    // containing "/" could inject extra path segments into the key,
+    // landing outside the intended state-filings/{id}/ prefix in the
+    // shared bucket. Strip everything except alphanumerics/dot/dash/
+    // underscore, same sanitization pattern used for org names in
+    // lib/doc-engine/zip.ts.
+    const safeName = stampedDoc.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const storageKey = `state-filings/${params.id}/stamped_${Date.now()}_${safeName}`;
     await uploadDocument(storageKey, buffer, stampedDoc.type || "application/pdf");
     update.stampedDocS3Key = storageKey;
   }
