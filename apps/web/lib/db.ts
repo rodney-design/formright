@@ -1,4 +1,4 @@
-import { Pool, type QueryResultRow } from "pg";
+import { Pool, type PoolClient, type QueryResultRow } from "pg";
 import * as Sentry from "@sentry/nextjs";
 
 declare global {
@@ -42,4 +42,18 @@ function getPool(): Pool {
 export async function query<T extends QueryResultRow = QueryResultRow>(text: string, params?: unknown[]) {
   const result = await getPool().query<T>(text, params as never[]);
   return result;
+}
+
+// For call sites that need more than one statement to commit atomically
+// (e.g. an advisory lock held across a check-then-act sequence) — `query()`
+// checks out a connection per call, so a lock or transaction started on one
+// statement wouldn't still be held by the next. Runs `fn` against a single
+// dedicated client and always releases it back to the pool.
+export async function withClient<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
+  const client = await getPool().connect();
+  try {
+    return await fn(client);
+  } finally {
+    client.release();
+  }
 }
