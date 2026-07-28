@@ -13,11 +13,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Valid email required" }, { status: 400 });
   }
 
-  const token = await createMagicLinkToken(email, typeof body?.name === "string" ? body.name : undefined);
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? req.nextUrl.origin;
-  const verifyUrl = `${appUrl}/api/auth/verify?token=${token}`;
 
+  // BUG (fixed): createMagicLinkToken used to run outside this try/catch —
+  // only the email send was guarded. createMagicLinkToken does a real DB
+  // write (SELECT then INSERT/UPDATE against `users`), and any failure
+  // there (a dropped connection, a transient network blip, anything) was an
+  // uncaught exception that Next.js turned into a raw 500 with no
+  // Sentry report and no clean error body, unlike every other failure mode
+  // in this route. Wrapping the whole thing means a DB hiccup here gets the
+  // same graceful handling as an email-send failure.
   try {
+    const token = await createMagicLinkToken(email, typeof body?.name === "string" ? body.name : undefined);
+    const verifyUrl = `${appUrl}/api/auth/verify?token=${token}`;
     await sendMagicLinkEmail(email, verifyUrl);
   } catch (err) {
     console.error(`Failed to send magic-link email to ${email}:`, err);

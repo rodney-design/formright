@@ -38,6 +38,23 @@ describe("POST /api/auth/request-link", () => {
     expect(captureExceptionMock).toHaveBeenCalledWith(expect.any(Error));
   });
 
+  // Regression for a real bug: createMagicLinkToken used to run outside the
+  // try/catch that only wrapped sendMagicLinkEmail, so a DB failure here
+  // (dropped connection, transient network blip) was an uncaught exception
+  // producing a raw 500 instead of this route's usual clean 502 error body.
+  it("returns 502 with a clean error body (not a 500 crash) when the DB call fails", async () => {
+    createMagicLinkTokenMock.mockRejectedValue(new Error("Connection terminated unexpectedly"));
+
+    const { POST } = await import("@/app/api/auth/request-link/route");
+    const res = await POST(await makeRequest({ email: "founder@example.com" }));
+    const json = await res.json();
+
+    expect(res.status).toBe(502);
+    expect(json.error).toBeTruthy();
+    expect(sendMagicLinkEmailMock).not.toHaveBeenCalled();
+    expect(captureExceptionMock).toHaveBeenCalledWith(expect.any(Error));
+  });
+
   it("returns ok:true when the email send succeeds", async () => {
     sendMagicLinkEmailMock.mockResolvedValue(undefined);
 
