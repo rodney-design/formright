@@ -134,4 +134,57 @@ html {
     color: #92400e;
     font-weight: 500;
   }
+  .legal-body h4 {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #14213d;
+    margin: 20px 0 6px;
+  }
+  .legal-body ol {
+    padding-left: 20px;
+    margin-bottom: 14px;
+    list-style: decimal;
+  }
+  .legal-body ol li {
+    font-size: 0.9rem;
+    color: #5b6478;
+    line-height: 1.85;
+    margin-bottom: 6px;
+    font-weight: 300;
+  }
+  .legal-body blockquote {
+    border-left: 3px solid #b8892e;
+    padding: 4px 0 4px 18px;
+    margin: 20px 0;
+    font-style: italic;
+    color: #14213d;
+  }
+  .legal-body table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    font-size: 0.85rem;
+  }
+  .legal-body th {
+    text-align: left;
+    background: #f3eee2;
+    color: #14213d;
+    font-weight: 700;
+    padding: 10px 12px;
+    border: 1px solid #d8cfb8;
+  }
+  .legal-body td {
+    padding: 10px 12px;
+    border: 1px solid #d8cfb8;
+    color: #5b6478;
+    font-weight: 300;
+    vertical-align: top;
+  }
+  .legal-body table caption {
+    caption-side: bottom;
+    font-size: 0.75rem;
+    color: #5b6478;
+    padding-top: 8px;
+    text-align: left;
+  }
 }
