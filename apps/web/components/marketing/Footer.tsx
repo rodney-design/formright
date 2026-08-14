@@ -105,6 +105,9 @@ export default function Footer({ isAdmin }: { isAdmin: boolean }) {
             <Link href="/blog" className="mb-[10px] block font-sans text-[.875rem] text-white/60 transition-colors hover:text-white">
               Blog
             </Link>
+            <Link href="/blog/glossary" className="mb-[10px] block font-sans text-[.875rem] text-white/60 transition-colors hover:text-white">
+              Glossary
+            </Link>
             <Link href="/#faq-anchor" className="mb-[10px] block font-sans text-[.875rem] text-white/60 transition-colors hover:text-white">
               FAQ
             </Link>

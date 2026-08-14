@@ -10,6 +10,7 @@ const NAV_LINKS = [
   { label: "How It Works", href: "/#how-anchor" },
   { label: "FAQ", href: "/#faq-anchor" },
   { label: "Blog", href: "/blog" },
+  { label: "Glossary", href: "/blog/glossary" },
 ];
 
 export default function Nav({ isAdmin }: { isAdmin: boolean }) {
