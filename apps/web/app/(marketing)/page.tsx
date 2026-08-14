@@ -4,6 +4,7 @@ import HowItWorks from "@/components/marketing/HowItWorks";
 import Features from "@/components/marketing/Features";
 import PricingTabs from "@/components/marketing/PricingTabs";
 import FaqAccordion from "@/components/marketing/FaqAccordion";
+import FeaturedGuides from "@/components/marketing/FeaturedGuides";
 import CtaBand from "@/components/marketing/CtaBand";
 
 export default function HomePage() {
@@ -15,6 +16,7 @@ export default function HomePage() {
       <Features />
       <PricingTabs />
       <FaqAccordion />
+      <FeaturedGuides />
       <CtaBand />
     </>
   );
