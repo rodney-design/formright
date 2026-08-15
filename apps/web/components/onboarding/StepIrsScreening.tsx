@@ -2,6 +2,7 @@
 
 import { useOnboardStore, type OnboardState } from "@/lib/store/onboardStore";
 import { evalIrs } from "@/lib/entities/evalIrs";
+import { getNonprofitSubtype, isNonprofitFamily } from "@/lib/entities/nonprofitSubtype";
 import { FormActions } from "./fields";
 import { Button } from "@/components/ui/Button";
 
@@ -34,7 +35,36 @@ const QUESTIONS: { key: keyof OnboardState["irs"]; question: string; noLabel: st
 
 export default function StepIrsScreening() {
   const s = useOnboardStore();
+  const family = s.entityFamily();
   const result = evalIrs(s.irs);
+
+  // 1023/1023-EZ eligibility only applies to 501(c)(3). Form 8976 (c4) and
+  // Form 1024 (c6/c7) don't have a comparable receipts/assets eligibility
+  // test, so those subtypes get filing guidance instead of a screening quiz.
+  if (isNonprofitFamily(family) && family !== "nonprofit") {
+    const subtype = getNonprofitSubtype(family);
+    return (
+      <div>
+        <div className="mb-6">
+          <h2 className="text-2xl font-serif font-bold text-navy">IRS Filing Guidance</h2>
+          <p className="text-gray-500 text-sm mt-1">
+            How {subtype.label} organizations apply for IRS recognition.
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-teal/20 bg-teal-pale p-4 text-sm text-teal flex gap-3">
+          <span className="text-lg">ℹ️</span>
+          <div>
+            <strong>{subtype.filingForm}.</strong> {subtype.filingGuidance}
+          </div>
+        </div>
+
+        <FormActions onBack={() => s.goToStep(4)} stepLabel="Step 5 of 6">
+          <Button onClick={() => s.goToStep(6)}>Continue →</Button>
+        </FormActions>
+      </div>
+    );
+  }
 
   return (
     <div>
