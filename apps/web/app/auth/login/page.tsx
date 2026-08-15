@@ -12,8 +12,11 @@ export default function LoginPage() {
             <rect x="4" y="12" width="10" height="2.5" rx="1.25" fill="white" opacity=".6" />
             <rect x="4" y="17" width="12" height="2.5" rx="1.25" fill="white" opacity=".6" />
           </svg>
-          <span className="font-serif font-bold text-xl text-navy">
+          <span className="flex items-baseline font-serif font-bold text-xl text-navy">
             Form<span className="text-teal">Right</span>
+            <sup className="ml-1 self-start pt-[3px] font-sans text-[9px] font-bold tracking-[1px] text-teal/70">
+              PBC
+            </sup>
           </span>
         </div>
         <p className="text-gray-500 text-sm">Sign in to access your dashboard</p>
