@@ -1,13 +1,28 @@
 "use client";
 
+import { useState } from "react";
 import { useOnboardStore } from "@/lib/store/onboardStore";
 import { Field, TextInput, Select, FormActions } from "./fields";
 import { Button } from "@/components/ui/Button";
 
 const ROLE_OPTIONS = ["President", "Vice President", "Secretary", "Treasurer", "Director"];
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function StepBoard() {
   const s = useOnboardStore();
+  const [attempted, setAttempted] = useState(false);
+
+  const memberErrors = s.board.map((m) => ({
+    name: !m.name.trim(),
+    email: !EMAIL_RE.test(m.email.trim()),
+  }));
+  const hasErrors = s.board.length < 3 || memberErrors.some((e) => e.name || e.email);
+
+  function next() {
+    setAttempted(true);
+    if (hasErrors) return;
+    s.goToStep(4);
+  }
 
   return (
     <div>
@@ -22,7 +37,7 @@ export default function StepBoard() {
       <div className="flex flex-col gap-4">
         {s.board.map((m, i) => (
           <div key={i} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_auto] gap-3 items-end">
-            <Field label="Full Name">
+            <Field label="Full Name" required error={attempted && memberErrors[i].name ? "Name is required" : undefined}>
               <TextInput value={m.name} onChange={(e) => s.updateBoardMember(i, { name: e.target.value })} placeholder="Jane Smith" />
             </Field>
             <Field label="Role / Title">
@@ -32,7 +47,7 @@ export default function StepBoard() {
                 ))}
               </Select>
             </Field>
-            <Field label="Email">
+            <Field label="Email" required error={attempted && memberErrors[i].email ? "Valid email is required" : undefined}>
               <TextInput type="email" value={m.email} onChange={(e) => s.updateBoardMember(i, { email: e.target.value })} placeholder="jane@email.com" />
             </Field>
             {s.board.length > 3 && (
@@ -74,7 +89,7 @@ export default function StepBoard() {
       </div>
 
       <FormActions onBack={() => s.goToStep(2)} stepLabel="Step 3 of 6">
-        <Button onClick={() => s.goToStep(4)}>Continue →</Button>
+        <Button onClick={next}>Continue →</Button>
       </FormActions>
     </div>
   );
