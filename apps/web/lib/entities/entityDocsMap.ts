@@ -47,6 +47,39 @@ export const ENTITY_DOCS_MAP: Record<EntityFamily, EntityDoc[]> = {
     { key: "resolutions", icon: "\u{1F3DB}️", title: "Board Resolution Templates", desc: "8 standard resolutions" },
     { key: "narrative_1023", icon: "\u{1F4D1}", title: "1023 Activity Narrative", desc: "IRS Part IV description" },
   ],
+  // 501(c)(4)/(6)/(7) share the same document set and builder functions as
+  // 501(c)(3) (each builder branches on O.entityType — see
+  // lib/entities/nonprofitSubtype.ts for the purpose/dissolution/filing text
+  // specific to each subsection). The 1023 Activity Narrative is intentionally
+  // excluded: Form 1023/1023-EZ only exists for 501(c)(3).
+  nonprofit_c4: [
+    { key: "articles", icon: "\u{1F4C4}", title: "Articles of Incorporation", desc: "Nonprofit formation document" },
+    { key: "bylaws", icon: "\u{1F4CB}", title: "Bylaws", desc: "Governance document" },
+    { key: "conflict", icon: "⚖️", title: "Conflict of Interest Policy", desc: "IRS best practice · required for Form 1024-A" },
+    { key: "minutes", icon: "\u{1F4DD}", title: "Initial Board Meeting Minutes", desc: "Pre-filled resolutions" },
+    { key: "ein", icon: "\u{1F522}", title: "EIN Application Guide (SS-4)", desc: "IRS employer ID instructions" },
+    { key: "whistleblower", icon: "\u{1F6E1}️", title: "Whistleblower Policy", desc: "Recommended governance policy" },
+    { key: "retention", icon: "\u{1F5C2}️", title: "Document Retention Policy", desc: "Records management policy" },
+    { key: "resolutions", icon: "\u{1F3DB}️", title: "Board Resolution Templates", desc: "8 standard resolutions" },
+  ],
+  nonprofit_c6: [
+    { key: "articles", icon: "\u{1F4C4}", title: "Articles of Incorporation", desc: "Nonprofit formation document" },
+    { key: "bylaws", icon: "\u{1F4CB}", title: "Bylaws", desc: "Governance document" },
+    { key: "conflict", icon: "⚖️", title: "Conflict of Interest Policy", desc: "Required for IRS Form 1024 filing" },
+    { key: "minutes", icon: "\u{1F4DD}", title: "Initial Board Meeting Minutes", desc: "Pre-filled resolutions" },
+    { key: "ein", icon: "\u{1F522}", title: "EIN Application Guide (SS-4)", desc: "IRS employer ID instructions" },
+    { key: "retention", icon: "\u{1F5C2}️", title: "Document Retention Policy", desc: "Records management policy" },
+    { key: "resolutions", icon: "\u{1F3DB}️", title: "Board Resolution Templates", desc: "8 standard resolutions" },
+  ],
+  nonprofit_c7: [
+    { key: "articles", icon: "\u{1F4C4}", title: "Articles of Incorporation", desc: "Nonprofit formation document" },
+    { key: "bylaws", icon: "\u{1F4CB}", title: "Bylaws", desc: "Governance document" },
+    { key: "conflict", icon: "⚖️", title: "Conflict of Interest Policy", desc: "Required for IRS Form 1024 filing" },
+    { key: "minutes", icon: "\u{1F4DD}", title: "Initial Board Meeting Minutes", desc: "Pre-filled resolutions" },
+    { key: "ein", icon: "\u{1F522}", title: "EIN Application Guide (SS-4)", desc: "IRS employer ID instructions" },
+    { key: "retention", icon: "\u{1F5C2}️", title: "Document Retention Policy", desc: "Records management policy" },
+    { key: "resolutions", icon: "\u{1F3DB}️", title: "Board Resolution Templates", desc: "8 standard resolutions" },
+  ],
   benefit: [
     { key: "articles_benefit", icon: "\u{1F4C4}", title: "Articles of Incorporation", desc: "Includes benefit purpose statement" },
     { key: "bylaws_corp", icon: "\u{1F4CB}", title: "Corporate Bylaws", desc: "Benefit corp governance document" },
