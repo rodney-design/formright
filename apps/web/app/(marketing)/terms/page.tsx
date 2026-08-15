@@ -144,7 +144,7 @@ export default function TermsPage() {
       <p>
         For questions about these Terms, contact us at{" "}
         <strong>
-          <a href="mailto:legal@rightform.org">legal@rightform.org</a>
+          <a href="mailto:legal@formright.org">legal@formright.org</a>
         </strong>{" "}
         or write to: FormRight Legal, 1234 Purpose Ave, Suite 100, Wilmington,
         DE 19801.

@@ -98,7 +98,7 @@ export default function RefundPage() {
       <p>
         To request a refund, email{" "}
         <strong>
-          <a href="mailto:billing@rightform.org">billing@rightform.org</a>
+          <a href="mailto:billing@formright.org">billing@formright.org</a>
         </strong>{" "}
         with your name, order ID, and reason for the request. We respond to
         all refund requests within 2 business days. Approved refunds are
@@ -117,7 +117,7 @@ export default function RefundPage() {
       <p>
         Questions about refunds? Reach us at{" "}
         <strong>
-          <a href="mailto:billing@rightform.org">billing@rightform.org</a>
+          <a href="mailto:billing@formright.org">billing@formright.org</a>
         </strong>{" "}
         or call <strong>(800) 555-0190</strong> Monday–Friday, 9am–5pm ET.
       </p>

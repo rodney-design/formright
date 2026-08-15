@@ -102,7 +102,7 @@ export default function DisclaimerPage() {
       <p>
         Questions about this disclaimer may be directed to{" "}
         <strong>
-          <a href="mailto:legal@rightform.org">legal@rightform.org</a>
+          <a href="mailto:legal@formright.org">legal@formright.org</a>
         </strong>
         .
       </p>

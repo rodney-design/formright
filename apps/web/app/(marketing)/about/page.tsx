@@ -78,7 +78,7 @@ export default function AboutPage() {
       <p>
         We&apos;d love to hear from you. Reach us at{" "}
         <strong>
-          <a href="mailto:hello@rightform.org">hello@rightform.org</a>
+          <a href="mailto:hello@formright.org">hello@formright.org</a>
         </strong>{" "}
         or visit our <Link href="/contact">Contact page</Link> for more ways
         to connect.

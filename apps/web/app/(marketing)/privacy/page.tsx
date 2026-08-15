@@ -84,7 +84,7 @@ export default function PrivacyPage() {
       <p>
         To exercise any of these rights, contact us at{" "}
         <strong>
-          <a href="mailto:privacy@rightform.org">privacy@rightform.org</a>
+          <a href="mailto:privacy@formright.org">privacy@formright.org</a>
         </strong>
         .
       </p>
@@ -118,7 +118,7 @@ export default function PrivacyPage() {
       <p>
         For privacy-related questions or requests, contact us at{" "}
         <strong>
-          <a href="mailto:privacy@rightform.org">privacy@rightform.org</a>
+          <a href="mailto:privacy@formright.org">privacy@formright.org</a>
         </strong>
         .
       </p>

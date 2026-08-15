@@ -103,7 +103,7 @@ export function buildDBAGuide(O: OrgData) {
       numbering: "bullets",
     }),
     blank(),
-    p("FormRight offers a discounted LLC upgrade path. Contact support@rightform.org for details.", { italic: true, color: "475569", align: "center" }),
+    p("FormRight offers a discounted LLC upgrade path. Contact support@formright.org for details.", { italic: true, color: "475569", align: "center" }),
   ];
 }
 
@@ -196,7 +196,7 @@ export function buildLicenseChecklist(O: OrgData) {
     p("Quarterly Estimated Taxes: Apr 15 · Jun 15 · Sep 15 · Jan 15", { after: 80 }),
     p("Annual Tax Return (Schedule C): April 15 of following year"),
     blank(),
-    p("Need help upgrading to an LLC? FormRight offers a credit toward LLC formation for sole proprietors ready to grow. Contact support@rightform.org.", {
+    p("Need help upgrading to an LLC? FormRight offers a credit toward LLC formation for sole proprietors ready to grow. Contact support@formright.org.", {
       italic: true,
       color: "F97316",
       align: "center",

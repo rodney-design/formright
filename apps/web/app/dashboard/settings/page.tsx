@@ -37,7 +37,7 @@ export default async function SettingsPage() {
             </div>
           </div>
           <a
-            href="mailto:support@rightform.org"
+            href="mailto:support@formright.org"
             className="bg-red-50 text-red-600 rounded-lg px-4 py-2 text-xs font-semibold shrink-0"
           >
             Contact Support

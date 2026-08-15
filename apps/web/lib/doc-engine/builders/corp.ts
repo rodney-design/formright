@@ -512,7 +512,7 @@ export function buildForm2553(O: OrgData) {
     p("Basis tracking:", { bold: true, after: 40 }),
     p("Maintain records of your stock basis and debt basis each year. Losses are limited to your basis."),
     blank(),
-    p("Questions? Contact FormRight at support@rightform.org or consult a CPA.", { italic: true, color: "475569", align: "center" }),
+    p("Questions? Contact FormRight at support@formright.org or consult a CPA.", { italic: true, color: "475569", align: "center" }),
   ];
 }
 

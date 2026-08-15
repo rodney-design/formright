@@ -36,10 +36,10 @@ export default function ContactPage() {
             Questions about our services or platform
           </div>
           <a
-            href="mailto:hello@rightform.org"
+            href="mailto:hello@formright.org"
             className="text-[.9rem] font-semibold text-stamp no-underline"
           >
-            hello@rightform.org
+            hello@formright.org
           </a>
         </div>
         <div className="rounded-sm border border-rule bg-paper p-6 text-center">
@@ -49,10 +49,10 @@ export default function ContactPage() {
             Terms, privacy, and legal notices
           </div>
           <a
-            href="mailto:legal@rightform.org"
+            href="mailto:legal@formright.org"
             className="text-[.9rem] font-semibold text-stamp no-underline"
           >
-            legal@rightform.org
+            legal@formright.org
           </a>
         </div>
         <div className="rounded-sm border border-rule bg-paper p-6 text-center">
@@ -62,10 +62,10 @@ export default function ContactPage() {
             Payments, refunds, and invoices
           </div>
           <a
-            href="mailto:billing@rightform.org"
+            href="mailto:billing@formright.org"
             className="text-[.9rem] font-semibold text-stamp no-underline"
           >
-            billing@rightform.org
+            billing@formright.org
           </a>
         </div>
       </div>

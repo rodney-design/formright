@@ -17,7 +17,7 @@ export default function SupportPage() {
           Find answers to common questions below. Can&apos;t find what you
           need? Our team is one email away at{" "}
           <strong>
-            <a href="mailto:support@rightform.org">support@rightform.org</a>
+            <a href="mailto:support@formright.org">support@formright.org</a>
           </strong>
           .
         </>
@@ -33,11 +33,11 @@ export default function SupportPage() {
           <span className="text-2xl">✉️</span>
           <div>
             <div className="mb-[2px] font-bold">Email Support</div>
-            <div className="text-[.83rem] opacity-85">support@rightform.org</div>
+            <div className="text-[.83rem] opacity-85">support@formright.org</div>
           </div>
         </Link>
         <a
-          href="mailto:support@rightform.org"
+          href="mailto:support@formright.org"
           className="flex items-center gap-[14px] rounded-sm bg-ink px-6 py-5 text-paper-white"
         >
           <span className="text-2xl">📞</span>
@@ -153,7 +153,7 @@ export default function SupportPage() {
         If the IRS issues a request for additional information (sometimes
         called a &quot;deficiency letter&quot;), contact us at{" "}
         <strong>
-          <a href="mailto:support@rightform.org">support@rightform.org</a>
+          <a href="mailto:support@formright.org">support@formright.org</a>
         </strong>
         . Depending on your plan, we may assist with the response at no
         additional charge or at a reduced rate.
@@ -174,7 +174,7 @@ export default function SupportPage() {
         <br />
         Yes. Contact{" "}
         <strong>
-          <a href="mailto:billing@rightform.org">billing@rightform.org</a>
+          <a href="mailto:billing@formright.org">billing@formright.org</a>
         </strong>{" "}
         and we&apos;ll apply your original payment as a credit toward the
         upgraded plan. You only pay the difference.
@@ -186,7 +186,7 @@ export default function SupportPage() {
         See our <Link href="/refund">Refund Policy</Link> for full details.
         To initiate a refund, email{" "}
         <strong>
-          <a href="mailto:billing@rightform.org">billing@rightform.org</a>
+          <a href="mailto:billing@formright.org">billing@formright.org</a>
         </strong>{" "}
         with your name, order ID, and reason.
       </p>
@@ -198,7 +198,7 @@ export default function SupportPage() {
       </p>
       <p>
         <strong>Email:</strong>{" "}
-        <a href="mailto:support@rightform.org">support@rightform.org</a>
+        <a href="mailto:support@formright.org">support@formright.org</a>
         <br />
         <strong>Phone:</strong> (800) 555-0190
         <br />
