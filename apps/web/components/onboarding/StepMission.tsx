@@ -7,12 +7,16 @@ import { Button } from "@/components/ui/Button";
 
 export default function StepMission() {
   const s = useOnboardStore();
-  const [error, setError] = useState(false);
+  const [attempted, setAttempted] = useState(false);
+
+  const fieldInvalid = {
+    mission: !s.mission.trim(),
+    programs: !s.programs.trim(),
+  };
 
   function next() {
-    const missing = !s.mission.trim();
-    setError(missing);
-    if (missing) return;
+    setAttempted(true);
+    if (Object.values(fieldInvalid).some(Boolean)) return;
     s.goToStep(3);
   }
 
@@ -23,10 +27,10 @@ export default function StepMission() {
         <p className="text-gray-500 text-sm mt-1">Help us understand what your organization does.</p>
       </div>
       <FormGrid>
-        <Field label="Mission Statement" required full hint="Should be clear, concise, and reflect your charitable purpose." error={error ? "Mission statement is required" : undefined}>
+        <Field label="Mission Statement" required full hint="Should be clear, concise, and reflect your charitable purpose." error={attempted && fieldInvalid.mission ? "Mission statement is required" : undefined}>
           <TextArea rows={3} value={s.mission} onChange={(e) => s.setField("mission", e.target.value)} placeholder="Briefly describe the organization's mission and purpose..." />
         </Field>
-        <Field label="Program Description" required full hint="This section will be used in your IRS application narrative.">
+        <Field label="Program Description" required full hint="This section will be used in your IRS application narrative." error={attempted && fieldInvalid.programs ? "Program description is required" : undefined}>
           <TextArea rows={4} value={s.programs} onChange={(e) => s.setField("programs", e.target.value)} placeholder="Describe your primary programs and activities in detail. Include who is served, what services you provide, and how you measure impact..." />
         </Field>
         <Field label="Geographic Area Served">

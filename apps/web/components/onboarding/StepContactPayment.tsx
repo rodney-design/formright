@@ -27,7 +27,7 @@ export default function StepContactPayment({
   setSubmitting: (v: boolean) => void;
 }) {
   const s = useOnboardStore();
-  const [errors, setErrors] = useState<Record<string, boolean>>({});
+  const [attempted, setAttempted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const family = s.entityFamily();
@@ -80,11 +80,16 @@ export default function StepContactPayment({
   const stateFeeCents = quote?.stateFeeCents ?? localStateFeeCents;
   const totalCents = quote?.totalCents ?? localTotalCents;
 
+  const fieldInvalid = {
+    fname: !s.fname.trim(),
+    lname: !s.lname.trim(),
+    email: !EMAIL_RE.test(s.email),
+  };
+  const errors = attempted ? fieldInvalid : ({} as Record<string, boolean>);
+
   async function submit() {
-    const emailOk = EMAIL_RE.test(s.email);
-    const nextErrors = { fname: !s.fname.trim(), lname: !s.lname.trim(), email: !emailOk };
-    setErrors(nextErrors);
-    if (Object.values(nextErrors).some(Boolean)) return;
+    setAttempted(true);
+    if (Object.values(fieldInvalid).some(Boolean)) return;
     if (!selectedPlan || selectedPlan.priceCents === null) {
       setSubmitError("Please select a plan to continue.");
       return;

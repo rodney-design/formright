@@ -23,19 +23,21 @@ const CA_SUBTYPE_OPTIONS: { value: "public_benefit" | "mutual_benefit" | "religi
 
 export default function StepOrganization() {
   const s = useOnboardStore();
-  const [errors, setErrors] = useState<Record<string, boolean>>({});
+  const [attempted, setAttempted] = useState(false);
   const showCaSubtype = s.state === "California" && entityFamily(s.orgtype) === "nonprofit";
 
+  const fieldInvalid = {
+    orgname: !s.orgname.trim(),
+    orgtype: !s.orgtype,
+    state: !s.state,
+    address: !s.address.trim(),
+    city: !s.city.trim(),
+  };
+  const errors = attempted ? fieldInvalid : ({} as Record<string, boolean>);
+
   function next() {
-    const nextErrors = {
-      orgname: !s.orgname.trim(),
-      orgtype: !s.orgtype,
-      state: !s.state,
-      address: !s.address.trim(),
-      city: !s.city.trim(),
-    };
-    setErrors(nextErrors);
-    if (Object.values(nextErrors).some(Boolean)) return;
+    setAttempted(true);
+    if (Object.values(fieldInvalid).some(Boolean)) return;
     s.goToStep(2);
   }
 
