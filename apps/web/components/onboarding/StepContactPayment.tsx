@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useOnboardStore } from "@/lib/store/onboardStore";
 import { ADDONS, getPlansForEntity } from "@/lib/entities/pricing";
 import { getStateFee } from "@/lib/entities/stateFees";
+import { evalIrs } from "@/lib/entities/evalIrs";
 import { Field, TextInput, FormActions } from "./fields";
 import { Button } from "@/components/ui/Button";
 
@@ -32,7 +33,12 @@ export default function StepContactPayment({
 
   const family = s.entityFamily();
   const plans = getPlansForEntity(family);
-  const defaultPlan = plans.find((p) => p.featured) ?? plans[0];
+  // For nonprofits, default to the plan the IRS Screening step (Step 5) recommended,
+  // rather than always falling back to the generically "featured" tier.
+  const irsResult = family === "nonprofit" ? evalIrs(s.irs) : null;
+  const recommendedPlanKey = irsResult?.status === "qualifies" ? "full-service-1023ez" : undefined;
+  const defaultPlan =
+    plans.find((p) => p.key === recommendedPlanKey) ?? plans.find((p) => p.featured) ?? plans[0];
   const selectedPlan = plans.find((p) => p.key === s.selectedPlanKey) ?? defaultPlan;
   const oneTimeAddons = ADDONS.filter((a) => !a.recurring);
   const addonsCents = oneTimeAddons
