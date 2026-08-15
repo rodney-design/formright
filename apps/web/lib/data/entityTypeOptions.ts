@@ -11,5 +11,4 @@ export const ENTITY_TYPE_OPTIONS = [
   "Sole Proprietorship / DBA",
   "Benefit Corporation",
   "Professional Corporation (PC/PLLC)",
-  "Other Nonprofit",
 ];
