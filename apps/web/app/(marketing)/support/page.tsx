@@ -202,7 +202,7 @@ export default function SupportPage() {
         <br />
         <strong>Phone:</strong> (800) 555-0190
         <br />
-        <strong>Mailing:</strong> FormRight, Inc., 1234 Purpose Ave Suite 100,
+        <strong>Mailing:</strong> FormRight, PBC, 1234 Purpose Ave Suite 100,
         Wilmington, DE 19801
       </p>
     </LegalShell>

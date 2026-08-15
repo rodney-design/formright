@@ -162,7 +162,7 @@ export default function ContactPage() {
 
       <h2>Mailing Address</h2>
       <p>
-        FormRight, Inc.
+        FormRight, PBC
         <br />
         1234 Purpose Ave, Suite 100
         <br />
