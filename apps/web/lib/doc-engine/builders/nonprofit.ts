@@ -16,6 +16,7 @@ import {
   WidthType,
 } from "docx";
 import { entityFamily } from "@/lib/entities/entityFamily";
+import { getNonprofitSubtype } from "@/lib/entities/nonprofitSubtype";
 import { blank, coverBlock, divider, h1, h2, h3, p } from "../helpers";
 import type { OrgData } from "../types";
 
@@ -26,38 +27,58 @@ import type { OrgData } from "../types";
 // told to file their EIN application as a nonprofit. See also
 // buildResolutionsCorp() in builders/corp.ts for the same class of bug in
 // the shared resolutions template.
-function einEntityInfo(O: OrgData): { typeLabel: string; wizardStep: string; afterEinBullet: string | null } {
+function einEntityInfo(O: OrgData): {
+  typeLabel: string;
+  wizardStep: string;
+  einPurposeNote: string;
+  afterEinBullet: string | null;
+} {
   const family = entityFamily(O.entityType);
+  const genericPurposeNote = "You must obtain it before opening a bank account or hiring staff.";
   switch (family) {
     case "llc":
       return {
         typeLabel: "Limited liability company (LLC)",
         wizardStep: 'Select "Limited Liability Company (LLC)"',
+        einPurposeNote: genericPurposeNote,
         afterEinBullet: null,
       };
     case "scorp":
       return {
         typeLabel: "Corporation (S election filed separately via Form 2553)",
         wizardStep: 'Select "View Additional Types" → "Corporations" → "Corporation"',
+        einPurposeNote: "You must obtain it before opening a bank account, hiring staff, or filing your S-Corp election.",
         afterEinBullet: "Filing IRS Form 2553 (S-Corp election)",
       };
     case "sole":
       return {
         typeLabel: "Sole proprietor",
         wizardStep: 'Select "Sole Proprietor"',
+        einPurposeNote: genericPurposeNote,
         afterEinBullet: null,
       };
     case "nonprofit":
+    case "nonprofit_c4":
+    case "nonprofit_c6":
+    case "nonprofit_c7": {
+      // Each 501(c) subsection files a different IRS form (1023/1023-EZ for
+      // (c)(3), Form 8976 for (c)(4), Form 1024 for (c)(6)/(c)(7)) — see
+      // lib/entities/nonprofitSubtype.ts. Previously hardcoded to 1023/1023-EZ
+      // regardless of subsection.
+      const subtype = getNonprofitSubtype(family);
       return {
         typeLabel: "Other nonprofit organization",
         wizardStep: 'Select "View Additional Types, Including Tax-Exempt" → "Other Nonprofit/Tax-Exempt Organizations"',
-        afterEinBullet: "Filing IRS Form 1023 or 1023-EZ",
+        einPurposeNote: subtype.einPurposeNote,
+        afterEinBullet: subtype.einNextStepsBullet,
       };
+    }
     default:
       // ccorp, benefit, pc
       return {
         typeLabel: "Corporation",
         wizardStep: 'Select "View Additional Types" → "Corporations" → "Corporation"',
+        einPurposeNote: genericPurposeNote,
         afterEinBullet: null,
       };
   }
@@ -74,6 +95,7 @@ function bdr(c: string) {
 
 export function buildArticles(O: OrgData) {
   const statute = O.nonprofitStatute;
+  const subtype = getNonprofitSubtype(entityFamily(O.entityType));
   return [
     ...coverBlock(O, "Articles of Incorporation", `A Nonprofit Corporation · State of ${O.state}`),
     h1("Articles of Incorporation"),
@@ -85,16 +107,15 @@ export function buildArticles(O: OrgData) {
     h2("Article II — Nonprofit Purpose"),
     // When a state-specific statutory purpose statement exists (e.g.
     // California Corp. Code §§ 5130/7130/9130 — see nonprofitStatutesTable.ts),
-    // it's required verbatim in the Articles alongside the federal 501(c)(3)
-    // exempt-purpose language below, not instead of it — that's how these are
-    // actually drafted in practice (state-mandated statement + IRS-required
-    // purpose clause as separate paragraphs).
+    // it's required verbatim in the Articles alongside the federal purpose
+    // language below, not instead of it — that's how these are actually
+    // drafted in practice (state-mandated statement + IRS-required purpose
+    // clause, specific to the actual 501(c) subsection, as separate
+    // paragraphs).
     ...(statute?.purposeClause
       ? [p(statute.purposeClause.replace("this corporation", O.name).replace("This corporation", O.name), { after: 160 })]
       : []),
-    p(
-      `The Corporation is organized exclusively for charitable, educational, scientific, and/or literary purposes within the meaning of Section 501(c)(3) of the Internal Revenue Code.`
-    ),
+    p(subtype.purposeClause),
     p(`Mission: "${O.mission}"`, { italic: true }),
     blank(),
     h2("Article III — Principal Office"),
@@ -125,9 +146,7 @@ export function buildArticles(O: OrgData) {
     ),
     blank(),
     h2("Article XI — Dissolution"),
-    p(
-      `Upon dissolution, assets shall be distributed for one or more exempt purposes within the meaning of Section 501(c)(3) of the Code, or to the federal, state, or local government for a public purpose.`
-    ),
+    p(subtype.dissolutionClause),
     ...(statute?.dissolutionNote
       ? [p(`State-law note (${statute.actCitation}): ${statute.dissolutionNote}`, { italic: true, color: "475569", size: 18 })]
       : []),
@@ -145,6 +164,7 @@ export function buildArticles(O: OrgData) {
 }
 
 export function buildBylaws(O: OrgData) {
+  const subtype = getNonprofitSubtype(entityFamily(O.entityType));
   return [
     ...coverBlock(O, "Organizational Bylaws", "Governing Document · IRS-Compliant"),
     h1(`Bylaws of ${O.name}`),
@@ -156,7 +176,7 @@ export function buildBylaws(O: OrgData) {
     h3("Section 1.2 — Mission"),
     p(`"${O.mission}"`),
     h3("Section 1.3 — Tax-Exempt Status"),
-    p("The Corporation is organized exclusively for purposes described in Section 501(c)(3) of the Internal Revenue Code."),
+    p(subtype.bylawsTaxExemptClause),
     blank(),
     h2("Article II — Principal Office"),
     p(`The principal office shall be at ${O.address}, ${O.city}, ${O.state} ${O.zip}.`),
@@ -209,12 +229,13 @@ export function buildBylaws(O: OrgData) {
 }
 
 export function buildConflict(O: OrgData) {
+  const subtype = getNonprofitSubtype(entityFamily(O.entityType));
   return [
-    ...coverBlock(O, "Conflict of Interest Policy", "Required for IRS 501(c)(3) Applications"),
+    ...coverBlock(O, "Conflict of Interest Policy", subtype.conflictSubtitle),
     h1("Conflict of Interest Policy"),
     p("Adopted: " + O.date, { color: "475569" }),
     blank(),
-    p("IMPORTANT: The IRS requires applicants for 501(c)(3) status to adopt this policy (Form 1023, Schedule O).", {
+    p(`IMPORTANT: ${subtype.conflictIntro}`, {
       bold: true,
       italic: true,
       color: "1B9AAA",
@@ -267,6 +288,7 @@ export function buildConflict(O: OrgData) {
 }
 
 export function buildMinutes(O: OrgData) {
+  const subtype = getNonprofitSubtype(entityFamily(O.entityType));
   const infoTable = new Table({
     width: { size: 9360, type: WidthType.DXA },
     columnWidths: [2500, 6860],
@@ -327,10 +349,7 @@ export function buildMinutes(O: OrgData) {
     }),
     blank(),
     h2("VI. Authorization to Apply for EIN & Tax-Exempt Status"),
-    p(
-      `RESOLVED, that the Corporation is authorized to apply for an EIN from the IRS and to file all applications for recognition of 501(c)(3) tax-exempt status.`,
-      { italic: true, color: "0D1B2A" }
-    ),
+    p(subtype.minutesAuthorizationClause, { italic: true, color: "0D1B2A" }),
     blank(),
     h2("VII. Fiscal Year"),
     p(`RESOLVED, that the fiscal year of the Corporation shall end on ${O.fiscal}.`, { italic: true, color: "0D1B2A" }),
@@ -390,7 +409,7 @@ export function buildEIN(O: OrgData) {
     blank(),
     h2("What is an EIN?"),
     p(
-      "An EIN is a unique nine-digit federal tax ID number (XX-XXXXXXX) for your organization. You must obtain it before opening a bank account, hiring staff, or applying for 501(c)(3) status."
+      `An EIN is a unique nine-digit federal tax ID number (XX-XXXXXXX) for your organization. ${einInfo.einPurposeNote}`
     ),
     blank(),
     h2("How to Apply Online (Free, Instant)"),
@@ -961,6 +980,6 @@ export function build1023Narrative(O: OrgData) {
     checkTable,
     blank(240),
 
-    p("Questions? Contact FormRight at support@rightform.org", { italic: true, color: "475569", align: "center" }),
+    p("Questions? Contact FormRight at support@formright.org", { italic: true, color: "475569", align: "center" }),
   ];
 }
