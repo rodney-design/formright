@@ -103,6 +103,71 @@ export const ENTITY_PRICING: Record<EntityFamily, PricingPlan[]> = {
       ctaLabel: "Book Consultation", ctaAction: "contact",
     },
   ],
+  // NOTE: introductory prices below are placeholders pending real cost review —
+  // update before launch. Feature/form language is accurate (see
+  // lib/entities/nonprofitSubtype.ts): 501(c)(4) files Form 8976 (+ optional
+  // 1024-A); 501(c)(6)/(c)(7) file Form 1024 — neither has a 1023-EZ-style
+  // streamlined option, so pricing/copy intentionally does not reference 1023-EZ.
+  nonprofit_c4: [
+    {
+      key: "diy", name: "DIY", priceCents: 14900, cadence: "one-time · + state filing fee",
+      description: "Complete document package ready to review and file yourself, including your Form 8976 notice of intent.",
+      features: ["Articles of Incorporation", "Bylaws", "Board Resolutions (8 templates)", "EIN Application (SS-4)", "Form 8976 preparation guide"],
+      ctaLabel: "Get Documents", ctaAction: "onboard",
+    },
+    {
+      key: "done-with-you", name: "Done-With-You", priceCents: 39900, cadence: "one-time · + state filing fee", featured: true,
+      description: "Our team reviews your documents, files your state incorporation and EIN, and files Form 8976 on your behalf.",
+      features: ["Everything in DIY", "Document review by our team", "State incorporation filing", "EIN filing with IRS", "Form 8976 filing on your behalf", "60-day priority email support"],
+      ctaLabel: "Start Formation", ctaAction: "onboard",
+    },
+    {
+      key: "full-service-1024a", name: "Full-Service 1024-A", priceCents: 69900, cadence: "one-time · + state filing fee",
+      description: "Everything in Done-With-You, plus optional Form 1024-A submission if you want formal IRS recognition (not required to operate).",
+      features: ["Everything in Done-With-You", "IRS Form 1024-A preparation", "Pay.gov filing on your behalf", "Status tracking to approval", "90-day email support"],
+      ctaLabel: "Launch My Organization", ctaAction: "onboard",
+    },
+  ],
+  nonprofit_c6: [
+    {
+      key: "diy", name: "DIY", priceCents: 19900, cadence: "one-time · + state filing fee",
+      description: "Complete document package ready to review and file yourself, including your Form 1024 preparation guide.",
+      features: ["Articles of Incorporation", "Bylaws", "Conflict of Interest Policy", "Board Resolutions (8 templates)", "EIN Application (SS-4)", "Form 1024 preparation guide"],
+      ctaLabel: "Get Documents", ctaAction: "onboard",
+    },
+    {
+      key: "done-with-you", name: "Done-With-You", priceCents: 49900, cadence: "one-time · + state filing fee", featured: true,
+      description: "Our team reviews your documents and files your state incorporation and EIN. You retain control of the Form 1024 application.",
+      features: ["Everything in DIY", "Document review by our team", "State incorporation filing", "EIN filing with IRS", "60-day priority email support"],
+      ctaLabel: "Start Formation", ctaAction: "onboard",
+    },
+    {
+      key: "full-service-1024", name: "Full-Service 1024", priceCents: 99900, cadence: "one-time · + state filing fee",
+      description: "We handle everything from state filing through IRS Form 1024 submission and status tracking.",
+      features: ["Everything in Done-With-You", "IRS Form 1024 preparation", "Pay.gov filing on your behalf", "Status tracking to approval", "90-day email support"],
+      ctaLabel: "Launch My Organization", ctaAction: "onboard",
+    },
+  ],
+  nonprofit_c7: [
+    {
+      key: "diy", name: "DIY", priceCents: 19900, cadence: "one-time · + state filing fee",
+      description: "Complete document package ready to review and file yourself, including your Form 1024 preparation guide.",
+      features: ["Articles of Incorporation", "Bylaws", "Conflict of Interest Policy", "Board Resolutions (8 templates)", "EIN Application (SS-4)", "Form 1024 preparation guide"],
+      ctaLabel: "Get Documents", ctaAction: "onboard",
+    },
+    {
+      key: "done-with-you", name: "Done-With-You", priceCents: 49900, cadence: "one-time · + state filing fee", featured: true,
+      description: "Our team reviews your documents and files your state incorporation and EIN. You retain control of the Form 1024 application.",
+      features: ["Everything in DIY", "Document review by our team", "State incorporation filing", "EIN filing with IRS", "60-day priority email support"],
+      ctaLabel: "Start Formation", ctaAction: "onboard",
+    },
+    {
+      key: "full-service-1024", name: "Full-Service 1024", priceCents: 99900, cadence: "one-time · + state filing fee",
+      description: "We handle everything from state filing through IRS Form 1024 submission and status tracking.",
+      features: ["Everything in Done-With-You", "IRS Form 1024 preparation", "Pay.gov filing on your behalf", "Status tracking to approval", "90-day email support"],
+      ctaLabel: "Launch My Organization", ctaAction: "onboard",
+    },
+  ],
   benefit: [
     {
       key: "starter", name: "Starter", priceCents: 9900, cadence: "one-time · + state filing fee",
