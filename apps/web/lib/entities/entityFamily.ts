@@ -5,7 +5,10 @@ export type EntityFamily =
   | "benefit"
   | "pc"
   | "sole"
-  | "nonprofit";
+  | "nonprofit" // 501(c)(3) — charitable
+  | "nonprofit_c4" // 501(c)(4) — social welfare
+  | "nonprofit_c6" // 501(c)(6) — business league
+  | "nonprofit_c7"; // 501(c)(7) — social club
 
 // Ported from formright_v2_pbc.html entityFamily() (line 28709). Split into
 // a "did this actually match a rule" variant (below) and the always-returns
@@ -28,6 +31,13 @@ export function tryEntityFamily(et: string | null | undefined): EntityFamily | n
   if (v.includes("s-corp") || v.includes("s corp") || v.includes("scorp")) return "scorp";
   if (v.includes("benefit")) return "benefit";
   if (v.includes("sole") || v.includes("dba")) return "sole";
+  // Check specific nonprofit subsections before the generic 501(c)(3) fallback —
+  // each has distinct IRS purpose/dissolution/filing requirements (see
+  // lib/entities/nonprofitSubtype.ts). Order matters: "501(c)(4)" etc. must be
+  // tested before the bare "nonprofit"/"501" match below.
+  if (v.includes("501(c)(4)") || v === "nonprofit_c4") return "nonprofit_c4";
+  if (v.includes("501(c)(6)") || v === "nonprofit_c6") return "nonprofit_c6";
+  if (v.includes("501(c)(7)") || v === "nonprofit_c7") return "nonprofit_c7";
   if (v.includes("nonprofit") || v.includes("501")) return "nonprofit";
   return null;
 }
