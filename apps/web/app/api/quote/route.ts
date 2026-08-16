@@ -36,7 +36,13 @@ export async function POST(req: NextRequest) {
 
   const stateFeeDetail = await getStateFeeForEntity(state, family);
   const stateFeeCents = stateFeeDetail?.feeCents ?? 0;
-  const selectedAddons = ADDONS.filter((a) => addonKeys.includes(a.key) && !a.recurring);
+  // Must mirror /api/checkout's exclusion exactly, or this endpoint's whole
+  // purpose (showing the real number checkout will charge) breaks: a bundled
+  // registered_agent addon would be quoted here but not actually charged
+  // there, so the customer would see a higher total than they're billed.
+  const selectedAddons = ADDONS.filter(
+    (a) => addonKeys.includes(a.key) && !a.recurring && !(a.key === "registered_agent" && plan.includesRegisteredAgent)
+  );
   const addonsCents = selectedAddons.reduce((sum, a) => sum + a.priceCents, 0);
   const totalCents = plan.priceCents === null ? null : plan.priceCents + stateFeeCents + addonsCents;
 

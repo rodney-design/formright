@@ -9,6 +9,8 @@ import { submitStateFilingToProvider } from "@/lib/state-filing/submit";
 import { ensureRegisteredAgentOrder } from "@/lib/queries/registeredAgent";
 import { ensureIrsFiling } from "@/lib/queries/irsFilings";
 import { entityFamily } from "@/lib/entities/entityFamily";
+import { isNonprofitFamily } from "@/lib/entities/nonprofitSubtype";
+import { getPlan } from "@/lib/entities/pricing";
 import { upsertFirmSubscription } from "@/lib/queries/firmSubscriptions";
 
 export const runtime = "nodejs";
@@ -114,7 +116,7 @@ export async function POST(req: NextRequest) {
             console.error(`Failed to create state filing for ${registrationId}:`, err);
             Sentry.captureException(err);
           }
-          if (purchasedRegisteredAgent(registration.notes)) {
+          if (needsRegisteredAgentOrder(registration.notes, registration.entity_type)) {
             try {
               await ensureRegisteredAgentOrder(registrationId);
             } catch (err) {
@@ -122,7 +124,7 @@ export async function POST(req: NextRequest) {
               Sentry.captureException(err);
             }
           }
-          if (entityFamily(registration.entity_type) === "nonprofit") {
+          if (isNonprofitFamily(entityFamily(registration.entity_type))) {
             try {
               await ensureIrsFiling(registrationId);
             } catch (err) {
@@ -185,9 +187,22 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ received: true });
 }
 
-function purchasedRegisteredAgent(notes: Record<string, unknown> | null): boolean {
+// True if this registration should get a registered_agent_orders row —
+// either the standalone addon was purchased, or the selected plan already
+// bundles a year of registered agent service (PricingPlan.includesRegisteredAgent).
+// Previously only checked the former, which meant Standard-tier buyers (who
+// are billed for registered agent as part of the plan price, and can no
+// longer separately double-pay for the addon — see app/api/checkout/route.ts
+// and app/api/quote/route.ts) never got a fulfillment order created for the
+// service they already paid for.
+function needsRegisteredAgentOrder(notes: Record<string, unknown> | null, entityType: string): boolean {
   const addons = notes?.addons;
-  return Array.isArray(addons) && addons.includes("registered_agent");
+  if (Array.isArray(addons) && addons.includes("registered_agent")) return true;
+
+  const planKey = typeof notes?.plan === "string" ? notes.plan : null;
+  if (!planKey) return false;
+  const plan = getPlan(entityFamily(entityType), planKey);
+  return Boolean(plan?.includesRegisteredAgent);
 }
 
 async function upsertFirmSeatSubscription(firmId: string, subscriptionId: string, subscription?: Stripe.Subscription) {

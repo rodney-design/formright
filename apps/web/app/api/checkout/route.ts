@@ -91,7 +91,18 @@ export async function POST(req: NextRequest) {
   // line item — Stripe Checkout can't mix one-time and recurring items in
   // "payment" mode. Those are subscribed to separately after formation; see
   // POST /api/subscriptions/comply/checkout.
-  const selectedAddons = ADDONS.filter((a) => data.addonKeys.includes(a.key) && !a.recurring);
+  //
+  // registered_agent is also excluded when the selected plan already bundles
+  // a year of it (plan.includesRegisteredAgent) — server-side, not just in
+  // the checkout UI (components/onboarding/StepContactPayment.tsx), since a
+  // stale client-side addonKeys selection (e.g. left checked from before
+  // switching plans) must not be able to cause a double charge here.
+  const selectedAddons = ADDONS.filter(
+    (a) =>
+      data.addonKeys.includes(a.key) &&
+      !a.recurring &&
+      !(a.key === "registered_agent" && plan.includesRegisteredAgent)
+  );
   const addonsCents = selectedAddons.reduce((sum, a) => sum + a.priceCents, 0);
   const totalCents = plan.priceCents + stateFeeCents + addonsCents;
 

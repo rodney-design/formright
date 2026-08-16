@@ -10,6 +10,16 @@ export interface PricingPlan {
   featured?: boolean;
   ctaLabel: string;
   ctaAction: "onboard" | "contact";
+  // True when this plan's price already bundles a year of registered agent
+  // service (reflected in `features` as "Registered agent (1 year)").
+  // Drives two things that previously weren't connected to each other:
+  // (1) hiding/rejecting the separate paid "Registered Agent" addon for
+  // these plans so customers aren't charged for it twice, and (2) still
+  // creating a registered_agent_orders row on payment so the bundled year
+  // actually gets fulfilled instead of silently not happening. See
+  // components/onboarding/StepContactPayment.tsx, app/api/checkout/route.ts,
+  // and app/api/webhooks/stripe/route.ts.
+  includesRegisteredAgent?: boolean;
 }
 
 // Ported from the entity-tabbed pricing section of formright_v2_pbc.html
@@ -28,7 +38,7 @@ export const ENTITY_PRICING: Record<EntityFamily, PricingPlan[]> = {
       key: "standard", name: "Standard", priceCents: 14900, cadence: "one-time · + state filing fee", featured: true,
       description: "Full document package, registered agent included, and compliance reminders for the year ahead.",
       features: ["Everything in Starter", "Multi-member Operating Agreement", "Registered agent (1 year)", "Unlimited document vault", "E-signature integration", "Annual report reminders"],
-      ctaLabel: "Start Formation", ctaAction: "onboard",
+      ctaLabel: "Start Formation", ctaAction: "onboard", includesRegisteredAgent: true,
     },
     {
       key: "pro", name: "Pro (B2B)", priceCents: 24900, cadence: "per formation · + state filing fee",
@@ -48,7 +58,7 @@ export const ENTITY_PRICING: Record<EntityFamily, PricingPlan[]> = {
       key: "standard", name: "Standard", priceCents: 24900, cadence: "one-time · + state filing fee", featured: true,
       description: "Full investor-ready package — everything a VC or angel investor expects to see at due diligence.",
       features: ["Everything in Starter", "Founder Stock Purchase Agreements", "Initial Board Resolutions", "Registered agent (1 year)", "Cap table starter template", "Unlimited document vault"],
-      ctaLabel: "Start Formation", ctaAction: "onboard",
+      ctaLabel: "Start Formation", ctaAction: "onboard", includesRegisteredAgent: true,
     },
     {
       key: "pro", name: "Pro (B2B)", priceCents: 39900, cadence: "per formation · + state filing fee",
@@ -68,7 +78,7 @@ export const ENTITY_PRICING: Record<EntityFamily, PricingPlan[]> = {
       key: "standard", name: "Standard", priceCents: 24900, cadence: "one-time · + state filing fee", featured: true,
       description: "Everything you need to operate as an S-Corp from day one, including payroll setup guidance.",
       features: ["Everything in Starter", "Stock issuance & transfer ledger", "Payroll setup guidance", "Registered agent (1 year)", "Unlimited document vault", "Annual compliance reminders"],
-      ctaLabel: "Start Formation", ctaAction: "onboard",
+      ctaLabel: "Start Formation", ctaAction: "onboard", includesRegisteredAgent: true,
     },
     {
       key: "pro", name: "Pro (B2B)", priceCents: 39900, cadence: "per formation · + state filing fee",
@@ -179,7 +189,7 @@ export const ENTITY_PRICING: Record<EntityFamily, PricingPlan[]> = {
       key: "standard", name: "Standard", priceCents: 24900, cadence: "one-time · + state filing fee", featured: true,
       description: "Full benefit corp package with annual report template and stakeholder impact framework.",
       features: ["Everything in Starter", "Annual Benefit Report template", "Stakeholder impact framework", "Registered agent (1 year)", "Unlimited document vault", "Annual compliance reminders"],
-      ctaLabel: "Start Formation", ctaAction: "onboard",
+      ctaLabel: "Start Formation", ctaAction: "onboard", includesRegisteredAgent: true,
     },
     {
       key: "pro", name: "Pro (B2B)", priceCents: 34900, cadence: "per formation · + state filing fee",
@@ -199,7 +209,7 @@ export const ENTITY_PRICING: Record<EntityFamily, PricingPlan[]> = {
       key: "standard", name: "Standard", priceCents: 29900, cadence: "one-time · + state filing fee", featured: true,
       description: "Complete professional corp package with shareholder restrictions and licensing cross-reference.",
       features: ["Everything in Starter", "Shareholder restriction provisions", "Stock Transfer Restriction Agreement", "Registered agent (1 year)", "Unlimited document vault", "License renewal reminders"],
-      ctaLabel: "Start Formation", ctaAction: "onboard",
+      ctaLabel: "Start Formation", ctaAction: "onboard", includesRegisteredAgent: true,
     },
     {
       key: "pro", name: "Pro (B2B)", priceCents: 44900, cadence: "per formation · + state filing fee",

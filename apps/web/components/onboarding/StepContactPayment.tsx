@@ -40,7 +40,9 @@ export default function StepContactPayment({
   const defaultPlan =
     plans.find((p) => p.key === recommendedPlanKey) ?? plans.find((p) => p.featured) ?? plans[0];
   const selectedPlan = plans.find((p) => p.key === s.selectedPlanKey) ?? defaultPlan;
-  const oneTimeAddons = ADDONS.filter((a) => !a.recurring);
+  const oneTimeAddons = ADDONS.filter(
+    (a) => !a.recurring && !(a.key === "registered_agent" && selectedPlan?.includesRegisteredAgent)
+  );
   const addonsCents = oneTimeAddons
     .filter((a) => s.addonKeys.has(a.key))
     .reduce((sum, a) => sum + a.priceCents, 0);
@@ -257,7 +259,7 @@ export default function StepContactPayment({
           </div>
         )}
         {Array.from(s.addonKeys).map((key) => {
-          const addon = ADDONS.find((a) => a.key === key);
+          const addon = oneTimeAddons.find((a) => a.key === key);
           if (!addon) return null;
           return (
             <div key={key} className="flex justify-between py-1.5 border-b border-gray-100 text-sm">
